@@ -18,9 +18,6 @@ public class ReceiveGpsData extends AsyncTask<Void, String,Void> {
     private int recvPort;
     private String dstIp;
     private NodesData nodesData;
-    private boolean newData = false;
-    private boolean newMarker = false;
-    private String newDataId = null;
 
     ReceiveGpsData(int RecvPort, int DstPort, String DstIP,NodesData nData){
         recvPort = RecvPort;
@@ -78,25 +75,10 @@ public class ReceiveGpsData extends AsyncTask<Void, String,Void> {
         return null;
     }
 
-    public boolean isNewDataAvailable(){
-        return newData;
-    }
-
-    public String getNewDataId(){
-        return newDataId;
-    }
-
-    public void resetNewDataInfo(){
-        newData = false;
-    }
 
     @Override
     protected void onProgressUpdate(String... values) {
         super.onProgressUpdate(values);
-
-        if( nodesData.updateNodesInfo(new GpsData(values[0], values[1], values[2], values[3], values[4])) != 0){
-            newData = true;
-            newDataId = values[0];
-        }
+        nodesData.updateNodesInfo(new GpsData(values[0], values[1], values[2], values[3], values[4]));
     }
 }

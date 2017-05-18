@@ -66,13 +66,11 @@ public class Demo extends AppCompatActivity implements PermissionsListener {
                     userCourse = getNextCourse();
 
                     /** Update the user position */
-                    //Log.i(TAG, userPosition.toString());
                     refreshUserPosition();
 
                     /** Update the neighbors position */
                     int i = 0;
                     while(i < neighsIndex.size()) {
-
                         neighPosition = getNextNeighPosition(neighsIndex.get(i));
                         refreshNeighPosition(neighsIndex.get(i));
                         i++;
@@ -86,6 +84,7 @@ public class Demo extends AppCompatActivity implements PermissionsListener {
     private void init(){
         Log.i(TAG,"\nPermissions granted. Starting the app...");
 
+        /** Initialize the Lists */
         neighPos = new ArrayList<List<LatLng>>();
         neighMarkers = new ArrayList<>();
         neighsIndex = new ArrayList<>();
@@ -94,14 +93,6 @@ public class Demo extends AppCompatActivity implements PermissionsListener {
 
         /** Get the Sample coordinates */
         getSampleFromData();
-
-        Log.i(TAG, "List of id: "+userId+" has size: "+posPoints.size());
-        int i = 0;
-        while(i < neighsIndex.size()){
-            Log.i(TAG, "List of id: "+neighsIndex.get(i)+" has size: "+neighPos.get(i).size());
-            i++;
-        }
-
 
         /** Get the user icon */
         IconFactory iconFactory = IconFactory.getInstance(Demo.this);
@@ -189,11 +180,16 @@ public class Demo extends AppCompatActivity implements PermissionsListener {
         IconFactory iconFactory = IconFactory.getInstance(Demo.this);
         Icon icon = iconFactory.fromResource(R.mipmap.light_blue_round_marker);
 
+        /** Create the marker */
         neighMarkers.add(new MarkerViewOptions().position(new LatLng(-1,-1)).icon(icon));
         neighsIndex.add(id);
+
+        /** Add the new marker to the map */
         map.addMarker(neighMarkers.get(getIndex(id)));
-        neighPosGen.add(0);
+
+        /** Initialize the List containing all the positions for the new neighbor*/
         neighPos.add(new ArrayList<LatLng>());
+        neighPosGen.add(0);
     }
 
     private void addNeighPos(String id, LatLng pos){
@@ -202,14 +198,11 @@ public class Demo extends AppCompatActivity implements PermissionsListener {
 
     private LatLng getNextPosition(){
         if(posGen == posPoints.size()-1){
-            /** Reset  all the positions */
+            /** When the animation ends -> Reset  all the positions */
             posGen = 0;
             int i = 0;
             while(i < neighsIndex.size()){
-                if(neighPos.size() > posPoints.size())
-                    neighPosGen.set(i, neighPos.size()-posPoints.size());
-                else
-                    neighPosGen.set(i, 0);
+                neighPosGen.set(i, 0);
                 i++;
             }
         }
@@ -221,11 +214,6 @@ public class Demo extends AppCompatActivity implements PermissionsListener {
         if(neighPosGen.get(getIndex(id)) == neighPos.get(getIndex(id)).size()-1) {
             return neighPos.get(getIndex(id)).get(neighPosGen.get(getIndex(id)));
         }
-
-        /**
-        if(neighPosGen.get(getIndex(id)) == neighPos.get(getIndex(id)).size()-1)
-            neighPosGen.set(getIndex(id), 0);
-         */
 
         LatLng pos = neighPos.get(getIndex(id)).get(neighPosGen.get(getIndex(id)));
         neighPosGen.set(getIndex(id), neighPosGen.get(getIndex(id)) +1);

@@ -10,14 +10,17 @@ public class NodesData {
 
     private static final String TAG = "debug";
     private ArrayList<Integer> lastUpdateMs = null;
-    private List<String> nodesIndex = null;
     private List<GpsData> nodesGps = null;
     private String userId = null;
+    private boolean userDataAvailable;
+
+    public List<String> nodesIndex = null;
 
     NodesData() {
         lastUpdateMs = new ArrayList<>();
         nodesIndex = new ArrayList<>();
         nodesGps = new ArrayList<>();
+        userDataAvailable = false;
     }
 
 
@@ -33,9 +36,11 @@ public class NodesData {
 
     }
 
-    public void add(GpsData gps) {
+    private void add(GpsData gps) {
         nodesIndex.add(gps.getId());
         nodesGps.add(gps);
+        if(gps.getId().equals(userId))
+            userDataAvailable = true;
     }
 
     private boolean contains(String id) {
@@ -84,7 +89,6 @@ public class NodesData {
         return nodesGps.get(getIndex(id));
     }
 
-
     public void getAllNodesInfo() {
         int i = 0;
         while (i < nodesGps.size()) {
@@ -121,6 +125,10 @@ public class NodesData {
 
     public void setUserId(String id){
         userId = id;
+    }
+
+    public boolean isUserDataAvailable(){
+        return userDataAvailable;
     }
 
     public String getUserId(){

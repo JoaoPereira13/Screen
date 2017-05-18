@@ -27,7 +27,7 @@ import java.util.List;
 public class TrackCustomRoute extends AppCompatActivity implements PermissionsListener {
 
     private static final String TAG = "debug";
-    private static final int refreshPeriodMs = 1;
+    private static final int refreshPeriodMs = 500;
     private static final int initialDelayMs = 2000;
     private static final int zoomLevel = 16;
     private static final int receivePort = 13892;
@@ -55,23 +55,24 @@ public class TrackCustomRoute extends AppCompatActivity implements PermissionsLi
             TrackCustomRoute.this.runOnUiThread(new Runnable() {
                 /** Loop function */
                 public void run() {
-                    /** Get the next sample */
 
-                    if(receiveGpsData.isNewDataAvailable()) {                                   /** New Data received */
-                        receiveGpsData.resetNewDataInfo();
-                        /** User info */
-                        if (receiveGpsData.getNewDataId().equals(nodesData.getUserId())) {
-                            /** Update the user position with the latest received */
-                            userPosition = new LatLng(Double.parseDouble(nodesData.getUserData().getLat()), Double.parseDouble(nodesData.getUserData().getLon()));
-                            //Log.i(TAG, "User Position received: "+userPosition.toString());
+                    /** Update the nodes positions */
+                    int i = 0;
+                    Log.i(TAG, "Neighs Index size(): "+nodesData.nodesIndex.size());
+                    while(i < nodesData.nodesIndex.size()) {
+                        if(nodesData.isUserDataAvailable() && nodesData.nodesIndex.get(i).equals(nodesData.getUserId())){   /** User position */
+                            userPosition = new LatLng(
+                                    Double.parseDouble(nodesData.getUserData().getLat()),
+                                    Double.parseDouble(nodesData.getUserData().getLon()));
                             refreshUserPosition();
                         }
-                        /** Neighbors Info */
-                        else {
-                            neighPosition = new LatLng(Double.parseDouble(nodesData.getNeighData(receiveGpsData.getNewDataId()).getLat()), Double.parseDouble(nodesData.getNeighData(receiveGpsData.getNewDataId()).getLon()));
-                            //Log.i(TAG, "Neighbor Position received: "+neighPosition.toString());
-                            refreshNeighPosition(receiveGpsData.getNewDataId());
+                        else {                                                                                              /** Neighbor position */
+                            neighPosition = new LatLng(
+                                    Double.parseDouble(nodesData.getNeighData(nodesData.nodesIndex.get(i)).getLat()),
+                                    Double.parseDouble(nodesData.getNeighData(nodesData.nodesIndex.get(i)).getLon()));
+                            refreshNeighPosition(nodesData.nodesIndex.get(i));
                         }
+                        i++;
                     }
                 }
             });
@@ -90,7 +91,7 @@ public class TrackCustomRoute extends AppCompatActivity implements PermissionsLi
 
         /** Get the user icon */
         IconFactory iconFactory = IconFactory.getInstance(TrackCustomRoute.this);
-        Icon icon = iconFactory.fromResource(R.mipmap.purple_marker);
+        Icon icon = iconFactory.fromResource(R.mipmap.purple_round_marker);
 
         /** Add the user marker in the starting position */
         userPosition = new LatLng(-1,-1);
@@ -132,10 +133,13 @@ public class TrackCustomRoute extends AppCompatActivity implements PermissionsLi
     }
 
     private void addNeighMarker(String id){
-        neighMarkers.add(new MarkerViewOptions().position(neighPosition));
+        /** Get the neighbor icon */
+        IconFactory iconFactory = IconFactory.getInstance(TrackCustomRoute.this);
+        Icon icon = iconFactory.fromResource(R.mipmap.light_blue_round_marker);
+
+        neighMarkers.add(new MarkerViewOptions().position(neighPosition).icon(icon));
         neighsIndex.add(id);
         map.addMarker(neighMarkers.get(getIndex(id)));
-
     }
 
     @Override

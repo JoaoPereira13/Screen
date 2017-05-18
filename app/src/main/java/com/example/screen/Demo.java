@@ -32,8 +32,9 @@ public class Demo extends AppCompatActivity implements PermissionsListener {
     private static final String TAG = "debug";
     private static final int refreshPeriodMs = 500;
     private static final int initialDelayMs = 2000;
-    private static final int zoomLevel = 17;
+    private static final int zoomLevel = 16;
     private static final String userId = "0000";
+    private static final String fileName = "OverT1_Total.txt";
 
     private static int posGen = 0;
     private static int courseGen = 0;
@@ -81,8 +82,8 @@ public class Demo extends AppCompatActivity implements PermissionsListener {
         }
     };
 
-    private void init(){
-        Log.i(TAG,"\nPermissions granted. Starting the app...");
+    private void init() {
+        Log.i(TAG, "\nPermissions granted. Starting the app...");
 
         /** Initialize the Lists */
         neighPos = new ArrayList<List<LatLng>>();
@@ -93,70 +94,30 @@ public class Demo extends AppCompatActivity implements PermissionsListener {
 
         /** Get the Sample coordinates */
         getSampleFromData();
-
-        /** Get the user icon */
-        IconFactory iconFactory = IconFactory.getInstance(Demo.this);
-        Icon icon = iconFactory.fromResource(R.mipmap.purple_round_marker);
-
-        /** Add the user marker in the starting position */
-        userPosition = posPoints.get(0);
-        userCourse = coursePoints.get(0);
-
-        userMarker = new MarkerViewOptions()
-                .position(userPosition)
-                .icon(icon);
-
-        /** Move the camera to the starting position */
-        map.moveCamera(CameraUpdateFactory.newCameraPosition(new CameraPosition.Builder()
-                .target(userPosition)
-                .zoom(zoomLevel)
-                .bearing(userCourse)
-                .build()));
-        map.addMarker(userMarker);
     }
 
-    private void getSampleFromData(){
-        BufferedReader reader = null;
-        String[] separated;
-        posPoints = new ArrayList<>();
-        coursePoints = new ArrayList<>();
-        try {
-            reader = new BufferedReader(
-                    new InputStreamReader(getAssets().open("OverT1_Total.txt")));
-            String mLine;
-            while ((mLine = reader.readLine()) != null) {
-                /** Seperate the Latitude from Longitude data */
-                separated = mLine.split(" ");
-                String id = separated[1];
-                if(id.equals(userId)) {             /** User Data */
-                    posPoints.add(new LatLng(
-                            Double.parseDouble(separated[3]),
-                            Double.parseDouble(separated[2])));
-                    coursePoints.add(Double.parseDouble(separated[5]));
-                }
-                else{                               /** Neighbors Data */
-                    if( getIndex(id) == -1) {
-                        addNeighMarker(id);
-                    }
-                    addNeighPos(id, new LatLng(
-                            Double.parseDouble(separated[3]),
-                            Double.parseDouble(separated[2])));
-                }
-            }
-        } catch (IOException e) {
-            /** log the exception */
-        } finally {
-            if (reader != null) {
-                try {
-                    reader.close();
-                } catch (IOException e) {
-                    /** log the exception */
-                }
-            }
-        }
-    }
 
     private void refreshUserPosition(){
+
+        if(userMarker == null){
+            /** Get the user icon */
+            IconFactory iconFactory = IconFactory.getInstance(Demo.this);
+            Icon icon = iconFactory.fromResource(R.mipmap.purple_round_marker);
+
+            /** Add the user marker in the starting position */
+            userMarker = new MarkerViewOptions()
+                    .position(userPosition)
+                    .icon(icon);
+
+            /** Move the camera to the starting position */
+            map.moveCamera(CameraUpdateFactory.newCameraPosition(new CameraPosition.Builder()
+                    .target(userPosition)
+                    .zoom(zoomLevel)
+                    .bearing(userCourse)
+                    .build()));
+            map.addMarker(userMarker);
+            return;
+        }
 
         /** Move the camera along the user position */
         map.moveCamera(CameraUpdateFactory.newCameraPosition(new CameraPosition.Builder()
@@ -173,7 +134,6 @@ public class Demo extends AppCompatActivity implements PermissionsListener {
         map.updateMarker(neighMarkers.get(getIndex(id))
                 .position(neighPosition).getMarker());
     }
-
 
     private void addNeighMarker(String id){
         /** Get the neighbor icon */
@@ -228,6 +188,48 @@ public class Demo extends AppCompatActivity implements PermissionsListener {
 
     private int getIndex(String id) {
         return neighsIndex.indexOf(id);
+    }
+
+
+    private void getSampleFromData(){
+        BufferedReader reader = null;
+        String[] separated;
+        posPoints = new ArrayList<>();
+        coursePoints = new ArrayList<>();
+        try {
+            reader = new BufferedReader(
+                    new InputStreamReader(getAssets().open(fileName)));
+            String mLine;
+            while ((mLine = reader.readLine()) != null) {
+                /** Seperate the Latitude from Longitude data */
+                separated = mLine.split(" ");
+                String id = separated[1];
+                if(id.equals(userId)) {             /** User Data */
+                    posPoints.add(new LatLng(
+                            Double.parseDouble(separated[3]),
+                            Double.parseDouble(separated[2])));
+                    coursePoints.add(Double.parseDouble(separated[5]));
+                }
+                else{                               /** Neighbors Data */
+                    if( getIndex(id) == -1) {
+                        addNeighMarker(id);
+                    }
+                    addNeighPos(id, new LatLng(
+                            Double.parseDouble(separated[3]),
+                            Double.parseDouble(separated[2])));
+                }
+            }
+        } catch (IOException e) {
+            /** log the exception */
+        } finally {
+            if (reader != null) {
+                try {
+                    reader.close();
+                } catch (IOException e) {
+                    /** log the exception */
+                }
+            }
+        }
     }
 
     @Override

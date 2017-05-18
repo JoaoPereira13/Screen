@@ -1,5 +1,8 @@
 package com.example.screen;
 
+import android.content.Context;
+import android.net.wifi.WifiInfo;
+import android.net.wifi.WifiManager;
 import android.os.Bundle;
 import android.os.Handler;
 import android.support.annotation.NonNull;
@@ -32,21 +35,21 @@ public class TrackCustomRoute extends AppCompatActivity implements PermissionsLi
     private static final int zoomLevel = 16;
     private static final int receivePort = 13892;
     private static final int destinyPort = 13891;
-    // TODO Get the ip address of the OBU based on it's SSID
-    private static final String destinyIP = "10.6.81.1";
     private static final boolean enableTracking = true;
+    private static final String userID = "0000";
 
     private PermissionsManager permissionsManager;
     private MapView mapView;
     private MapboxMap map;
     private LatLng userPosition = null;
     private LatLng neighPosition;
+    private WifiManager wifi;
 
     private MarkerViewOptions userMarker = null;
     private List<MarkerViewOptions> neighMarkers;
     private List<String> neighsIndex = null;
     private NodesData nodesData = new NodesData();
-    private ReceiveGpsData receiveGpsData = new ReceiveGpsData(receivePort, destinyPort, destinyIP, nodesData);
+    private ReceiveGpsData receiveGpsData;
 
     private static Handler handler = new Handler();
     private Runnable runnable = new Runnable() {
@@ -83,31 +86,47 @@ public class TrackCustomRoute extends AppCompatActivity implements PermissionsLi
         Log.i(TAG,"\nPermissions granted. Starting the app...");
 
         // TODO Automate the proccess to set the user Id
-        nodesData.setUserId("0000");
+        nodesData.setUserId(userID);
+
+        /** Extract the IP address of the OBU from the SSID */
+        wifi = (WifiManager) getApplicationContext().getSystemService(Context.WIFI_SERVICE);
+        WifiInfo info = wifi.getConnectionInfo();
+        Log.i(TAG,"SSID: "+info.getSSID());
+        String[] separated;
+        separated = info.getSSID().toString().split("netRider");
+        String destinyIP = "10."+separated[1].substring(0,1)+"."+separated[1].substring(1,3)+".1";
+
+        /** Start the thread responsible for receiving the GPS data from the OBU */
+        receiveGpsData= new ReceiveGpsData(receivePort, destinyPort, destinyIP, nodesData);
         receiveGpsData.execute();
+
+        /** Initialize the lists containing the neighbor markers and index */
         neighMarkers = new ArrayList<>();
         neighsIndex = new ArrayList<>();
-
-        /** Get the user icon */
-        IconFactory iconFactory = IconFactory.getInstance(TrackCustomRoute.this);
-        Icon icon = iconFactory.fromResource(R.mipmap.purple_round_marker);
-
-        /** Add the user marker in the starting position */
-        userPosition = new LatLng(-1,-1);
-        userMarker = new MarkerViewOptions()
-                .position(userPosition)
-                .icon(icon);
-
-        /** Move the camera to the starting position */
-        map.moveCamera(CameraUpdateFactory.newCameraPosition(new CameraPosition.Builder()
-                .target(userPosition)
-                .zoom(zoomLevel)
-                .build()));
-        map.addMarker(userMarker);
     }
 
     private void refreshUserPosition(){
         if(enableTracking) {
+            if(userMarker==null){
+                /** Get the user icon */
+                IconFactory iconFactory = IconFactory.getInstance(TrackCustomRoute.this);
+                Icon icon = iconFactory.fromResource(R.mipmap.purple_round_marker);
+
+                /** Add the user marker in the starting position */
+                userMarker = new MarkerViewOptions()
+                        .position(userPosition)
+                        .icon(icon);
+
+                /** Move the camera to the starting position */
+                map.moveCamera(CameraUpdateFactory.newCameraPosition(new CameraPosition.Builder()
+                        .target(userPosition)
+                        .zoom(zoomLevel)
+                        .bearing(Double.parseDouble(nodesData.getUserData().getCourse()))
+                        .build()));
+                map.addMarker(userMarker);
+                return;
+            }
+
             /** Move the camera along the user position */
             map.moveCamera(CameraUpdateFactory.newCameraPosition(new CameraPosition.Builder()
                     .target(userPosition)
@@ -121,7 +140,7 @@ public class TrackCustomRoute extends AppCompatActivity implements PermissionsLi
 
     private void refreshNeighPosition(String id) {
         /** Create the Neighbor marker */
-        if (getIndex(id) == -1) {           // New marker
+        if (getIndex(id) == -1) {           /** New marker */
             addNeighMarker(id);
         }
         else{

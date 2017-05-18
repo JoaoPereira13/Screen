@@ -2,7 +2,6 @@ package com.example.screen;
 
 import android.os.AsyncTask;
 import android.util.Log;
-import android.widget.TextView;
 
 import java.io.IOException;
 import java.net.DatagramPacket;
@@ -19,7 +18,7 @@ public class ReceiveGpsData extends AsyncTask<Void, String,Void> {
     private String dstIp;
     private NodesData nodesData;
 
-    ReceiveGpsData(int RecvPort, int DstPort, String DstIP,NodesData nData){
+    ReceiveGpsData(int RecvPort, int DstPort, String DstIP, NodesData nData){
         recvPort = RecvPort;
         dstPort = DstPort;
         dstIp = DstIP;
@@ -75,10 +74,9 @@ public class ReceiveGpsData extends AsyncTask<Void, String,Void> {
         return null;
     }
 
-
     @Override
     protected void onProgressUpdate(String... values) {
         super.onProgressUpdate(values);
-        nodesData.updateNodesInfo(new GpsData(values[0], values[1], values[2], values[3], values[4]));
+        nodesData.updateNodesData(new GpsData(values[0], values[1], values[2], values[3], values[4]));
     }
 }

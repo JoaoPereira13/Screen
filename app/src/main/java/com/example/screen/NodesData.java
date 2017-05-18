@@ -64,7 +64,15 @@ public class NodesData {
         nodesIndex.remove(id);
     }
 
-    public int updateNodesInfo(GpsData gps) {
+    public GpsData getUserData(){
+        return nodesGps.get(getIndex(userId));
+    }
+
+    public GpsData getNeighData(String id){
+        return nodesGps.get(getIndex(id));
+    }
+
+    public int updateNodesData(GpsData gps) {
 
         //updateTime();
         String id = gps.getId();
@@ -79,14 +87,6 @@ public class NodesData {
             add(gps);
             return 2;                           /** New Node Added */
         }
-    }
-
-    public GpsData getUserData(){
-        return nodesGps.get(getIndex(userId));
-    }
-
-    public GpsData getNeighData(String id){
-        return nodesGps.get(getIndex(id));
     }
 
     public void getAllNodesInfo() {

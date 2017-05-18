@@ -1,0 +1,67 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout
+    xmlns:android="http://schemas.android.com/apk/res/android"
+    android:orientation="vertical"
+    android:layout_width="fill_parent"
+    android:layout_height="fill_parent"
+    android:weightSum="1">
+
+    <TextView
+        android:id="@+id/welcome_text"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:gravity="center"
+        android:textSize="16sp"
+        android:text="@string/welcome_text"
+        android:layout_weight="0.56" />
+
+        <Button
+            android:id="@+id/btnDemo"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:textSize="16sp"
+            android:text="@string/demo"
+            android:gravity="center"
+            style="@style/Widget.AppCompat.Button" />
+
+        <Button
+            android:id="@+id/btnMap"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:textSize="16sp"
+            android:text="@string/view_map"
+            android:gravity="center"
+            style="@style/Widget.AppCompat.Button" />
+
+
+    <Button
+        android:id="@+id/btnTrackMap"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:textSize="16sp"
+        android:text="@string/tracking_mode"
+        android:gravity="center"
+        style="@style/Widget.AppCompat.Button" />
+
+
+    <Button
+        android:id="@+id/btnOffline"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:textSize="16sp"
+        android:text="@string/manage_offline_maps"
+        android:gravity="center"
+        style="@style/Widget.AppCompat.Button" />
+
+    <Button
+        android:id="@+id/btnCM"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:textSize="16sp"
+        android:text="@string/manage_connections"
+        android:gravity="center"
+        style="@style/Widget.AppCompat.Button" />
+
+
+</LinearLayout>
+

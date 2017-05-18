@@ -1,0 +1,14 @@
+<resources>
+    <string name="app_name">Screen</string>
+    <string name="welcome_text">Welcome text...</string>
+    <string name="view_map">View Map</string>
+    <string name="manage_connections">Manage Connections</string>
+    <string name="current_network_details">Current Network Details</string>
+    <string name="search_networks">Search Networks</string>
+    <string name="CM_name">Connection Management</string>
+    <string name="access_token">pk.eyJ1Ijoiam9hb2ZwZXJlaXJhIiwiYSI6ImNqMGloYnBkaDAwMDUzMnMyZ2s1NmR6cXQifQ.Y9VqX5vImcD2fSSjjAj3WQ</string>
+    <string name="manage_offline_maps">Manage offline maps</string>
+    <string name="demo">Demo</string>
+    <string name="tracking_mode">Tracking mode</string>
+
+</resources>

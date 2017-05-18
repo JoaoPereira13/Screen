@@ -58,19 +58,18 @@ public class TrackCustomRoute extends AppCompatActivity implements PermissionsLi
 
                     /** Update the nodes positions */
                     int i = 0;
-                    Log.i(TAG, "Neighs Index size(): "+nodesData.nodesIndex.size());
                     while(i < nodesData.nodesIndex.size()) {
-                        if(nodesData.isUserDataAvailable() && nodesData.nodesIndex.get(i).equals(nodesData.getUserId())){   /** User position */
-                            userPosition = new LatLng(
-                                    Double.parseDouble(nodesData.getUserData().getLat()),
-                                    Double.parseDouble(nodesData.getUserData().getLon()));
-                            refreshUserPosition();
-                        }
-                        else {                                                                                              /** Neighbor position */
+                        if(!nodesData.nodesIndex.get(i).equals(nodesData.getUserId())){         /** Neighbor position */
                             neighPosition = new LatLng(
                                     Double.parseDouble(nodesData.getNeighData(nodesData.nodesIndex.get(i)).getLat()),
                                     Double.parseDouble(nodesData.getNeighData(nodesData.nodesIndex.get(i)).getLon()));
                             refreshNeighPosition(nodesData.nodesIndex.get(i));
+                        }
+                        else if(nodesData.isUserDataAvailable()){                               /**  User position */
+                            userPosition = new LatLng(
+                                    Double.parseDouble(nodesData.getUserData().getLat()),
+                                    Double.parseDouble(nodesData.getUserData().getLon()));
+                            refreshUserPosition();
                         }
                         i++;
                     }

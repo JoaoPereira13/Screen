@@ -30,8 +30,6 @@ import java.util.List;
 public class TrackCustomRoute extends AppCompatActivity implements PermissionsListener {
 
     private static final String TAG = "debug";
-    private static final String userID = "0000";
-
     private static final int refreshPeriodMs = 500;
     private static final int initialDelayMs = 2000;
     private static final int zoomLevel = 16;
@@ -84,6 +82,8 @@ public class TrackCustomRoute extends AppCompatActivity implements PermissionsLi
     private void init(){
         Log.i(TAG,"\nPermissions granted. Starting the app...");
 
+        neighData = new GpsData();
+        userData = new GpsData();
         nodesData.setUserId(getUsrId());
 
         /** Start the thread responsible for receiving the GPS data from the OBU */

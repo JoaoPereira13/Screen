@@ -1,5 +1,6 @@
 package com.example.screen;
 
+
 import android.os.Bundle;
 import android.os.Handler;
 import android.support.annotation.NonNull;
@@ -33,7 +34,9 @@ public class Demo extends AppCompatActivity implements PermissionsListener {
     private static final int refreshPeriodMs = 500;
     private static final int initialDelayMs = 2000;
     private static final int zoomLevel = 16;
-    private static final String userId = "0000";
+    private static final int opposingLaneThreshold = 5;
+    private static final int sameLaneThreshold = 5;
+    private static final String userId = "681";
     private static final String fileName = "OverT1_Total.txt";
 
     private static int posGen = 0;
@@ -42,17 +45,15 @@ public class Demo extends AppCompatActivity implements PermissionsListener {
     private PermissionsManager permissionsManager;
     private MapView mapView;
     private MapboxMap map;
-    private LatLng userPosition = null;
-    private Double userCourse = null;
-    private MarkerViewOptions userMarker = null;
-    private List<LatLng> posPoints;
-    private List<Double> coursePoints;
-    private List<List<LatLng>> neighPos;
 
-    private LatLng neighPosition;
+    private MarkerViewOptions userMarker = null;
+    private List<GpsData> usrPoints;
+    private List<List<GpsData>> neighPoints;
     private List<MarkerViewOptions> neighMarkers;
     private List<String> neighsIndex = null;
     private List<Integer> neighPosGen;
+    private GpsData userData;
+    private GpsData neighData;
 
     private static Handler handler = new Handler();
     private Runnable runnable = new Runnable() {
@@ -63,8 +64,7 @@ public class Demo extends AppCompatActivity implements PermissionsListener {
                 public void run() {
 
                     /** Get the next sample */
-                    userPosition = getNextPosition();
-                    userCourse = getNextCourse();
+                    userData = getNextPosition();
 
                     /** Update the user position */
                     refreshUserPosition();
@@ -72,7 +72,7 @@ public class Demo extends AppCompatActivity implements PermissionsListener {
                     /** Update the neighbors position */
                     int i = 0;
                     while(i < neighsIndex.size()) {
-                        neighPosition = getNextNeighPosition(neighsIndex.get(i));
+                        neighData = getNextNeighPosition(neighsIndex.get(i));
                         refreshNeighPosition(neighsIndex.get(i));
                         i++;
                     }
@@ -86,7 +86,8 @@ public class Demo extends AppCompatActivity implements PermissionsListener {
         Log.i(TAG, "\nPermissions granted. Starting the app...");
 
         /** Initialize the Lists */
-        neighPos = new ArrayList<List<LatLng>>();
+        usrPoints = new ArrayList<>();
+        neighPoints = new ArrayList<List<GpsData>>();
         neighMarkers = new ArrayList<>();
         neighsIndex = new ArrayList<>();
         neighPosGen = new ArrayList<>();
@@ -95,7 +96,6 @@ public class Demo extends AppCompatActivity implements PermissionsListener {
         /** Get the Sample coordinates */
         getSampleFromData();
     }
-
 
     private void refreshUserPosition(){
 
@@ -106,14 +106,14 @@ public class Demo extends AppCompatActivity implements PermissionsListener {
 
             /** Add the user marker in the starting position */
             userMarker = new MarkerViewOptions()
-                    .position(userPosition)
+                    .position(userData.getLatLng())
                     .icon(icon);
 
             /** Move the camera to the starting position */
             map.moveCamera(CameraUpdateFactory.newCameraPosition(new CameraPosition.Builder()
-                    .target(userPosition)
+                    .target(userData.getLatLng())
                     .zoom(zoomLevel)
-                    .bearing(userCourse)
+                    .bearing(userData.getCourseDouble())
                     .build()));
             map.addMarker(userMarker);
             return;
@@ -121,24 +121,50 @@ public class Demo extends AppCompatActivity implements PermissionsListener {
 
         /** Move the camera along the user position */
         map.moveCamera(CameraUpdateFactory.newCameraPosition(new CameraPosition.Builder()
-                .target(userPosition)
-                .bearing(userCourse)
+                .target(userData.getLatLng())
+                .bearing(userData.getCourseDouble())
                 .build()));
         /** Move the user marker */
         map.updateMarker(userMarker
-                .position(userPosition).getMarker());
+                .position(userData.getLatLng()).getMarker());
     }
 
     private void refreshNeighPosition(String id) {
-        /** Move the Neighbor marker */
-        map.updateMarker(neighMarkers.get(getIndex(id))
-                .position(neighPosition).getMarker());
+        /** Car in the same lane */
+        if(isOnOpposingLane(userData.getCourseDouble(), neighData.getCourseDouble())){
+            IconFactory iconFactory = IconFactory.getInstance(Demo.this);
+            Icon icon = iconFactory.fromResource(R.mipmap.red_round_marker);
+
+            map.updateMarker(neighMarkers.get(getIndex(id))
+                    .position(neighData.getLatLng())
+                    .icon(icon)
+                    .getMarker());
+        }
+        /** Car in the opposing lane */
+        else if(isOnSameLane(userData.getCourseDouble(), neighData.getCourseDouble())){
+            IconFactory iconFactory = IconFactory.getInstance(Demo.this);
+            Icon icon = iconFactory.fromResource(R.mipmap.light_blue_round_marker);
+
+            map.updateMarker(neighMarkers.get(getIndex(id))
+                    .position(neighData.getLatLng())
+                    .icon(icon)
+                    .getMarker());
+        }
+        else{
+            IconFactory iconFactory = IconFactory.getInstance(Demo.this);
+            Icon icon = iconFactory.fromResource(R.mipmap.green_round_marker);
+
+            map.updateMarker(neighMarkers.get(getIndex(id))
+                    .position(neighData.getLatLng())
+                    .icon(icon)
+                    .getMarker());
+        }
     }
 
     private void addNeighMarker(String id){
         /** Get the neighbor icon */
         IconFactory iconFactory = IconFactory.getInstance(Demo.this);
-        Icon icon = iconFactory.fromResource(R.mipmap.light_blue_round_marker);
+        Icon icon = iconFactory.fromResource(R.mipmap.green_round_marker);
 
         /** Create the marker */
         neighMarkers.add(new MarkerViewOptions().position(new LatLng(-1,-1)).icon(icon));
@@ -148,17 +174,18 @@ public class Demo extends AppCompatActivity implements PermissionsListener {
         map.addMarker(neighMarkers.get(getIndex(id)));
 
         /** Initialize the List containing all the positions for the new neighbor*/
-        neighPos.add(new ArrayList<LatLng>());
+        neighPoints.add(new ArrayList<GpsData>());
         neighPosGen.add(0);
     }
 
-    private void addNeighPos(String id, LatLng pos){
-        neighPos.get(getIndex(id)).add(pos);
+    private void addNeighPos(GpsData gpsData){
+        neighPoints.get(getIndex(gpsData.getId())).add(gpsData);
     }
 
-    private LatLng getNextPosition(){
-        if(posGen == posPoints.size()-1){
-            /** When the animation ends -> Reset  all the positions */
+
+    private GpsData getNextPosition(){
+        if(posGen == usrPoints.size()-1){
+            /** When the animation ends -> Restart */
             posGen = 0;
             int i = 0;
             while(i < neighsIndex.size()){
@@ -166,24 +193,18 @@ public class Demo extends AppCompatActivity implements PermissionsListener {
                 i++;
             }
         }
-        return posPoints.get(++posGen);
+        return usrPoints.get(++posGen);
     }
 
-    private LatLng getNextNeighPosition(String id){
+    private GpsData getNextNeighPosition(String id){
 
-        if(neighPosGen.get(getIndex(id)) == neighPos.get(getIndex(id)).size()-1) {
-            return neighPos.get(getIndex(id)).get(neighPosGen.get(getIndex(id)));
+        if(neighPosGen.get(getIndex(id)) == neighPoints.get(getIndex(id)).size()-1) {
+            return neighPoints.get(getIndex(id)).get(neighPosGen.get(getIndex(id)));
         }
 
-        LatLng pos = neighPos.get(getIndex(id)).get(neighPosGen.get(getIndex(id)));
+        GpsData gpsData = neighPoints.get(getIndex(id)).get(neighPosGen.get(getIndex(id)));
         neighPosGen.set(getIndex(id), neighPosGen.get(getIndex(id)) +1);
-        return pos;
-    }
-
-    private Double getNextCourse(){
-        if(courseGen == coursePoints.size()-1)
-            courseGen = 0;
-        return coursePoints.get(++courseGen);
+        return gpsData;
     }
 
     private int getIndex(String id) {
@@ -194,8 +215,6 @@ public class Demo extends AppCompatActivity implements PermissionsListener {
     private void getSampleFromData(){
         BufferedReader reader = null;
         String[] separated;
-        posPoints = new ArrayList<>();
-        coursePoints = new ArrayList<>();
         try {
             reader = new BufferedReader(
                     new InputStreamReader(getAssets().open(fileName)));
@@ -205,18 +224,34 @@ public class Demo extends AppCompatActivity implements PermissionsListener {
                 separated = mLine.split(" ");
                 String id = separated[1];
                 if(id.equals(userId)) {             /** User Data */
-                    posPoints.add(new LatLng(
-                            Double.parseDouble(separated[3]),
-                            Double.parseDouble(separated[2])));
-                    coursePoints.add(Double.parseDouble(separated[5]));
+                    usrPoints.add(new GpsData(
+                            separated[1],
+                            separated[2],
+                            separated[3],
+                            separated[4],
+                            separated[5]));
                 }
                 else{                               /** Neighbors Data */
                     if( getIndex(id) == -1) {
                         addNeighMarker(id);
                     }
-                    addNeighPos(id, new LatLng(
-                            Double.parseDouble(separated[3]),
-                            Double.parseDouble(separated[2])));
+                    if(separated[1].equals("0001")){            /** Car in the same lane */
+                        addNeighPos(new GpsData(
+                                separated[1],
+                                separated[2],
+                                separated[3],
+                                separated[4],
+                                separated[5]));
+                    }
+                    else{                                       /** Opposite lane */
+                    addNeighPos(new GpsData(
+                            separated[1],
+                            separated[2],
+                            separated[3],
+                            separated[4],
+                            //separated[5]));
+                            "205"));
+                    }
                 }
             }
         } catch (IOException e) {
@@ -260,6 +295,14 @@ public class Demo extends AppCompatActivity implements PermissionsListener {
                 }
             }
         });
+    }
+
+    private boolean isOnOpposingLane(Double userCourse, Double neighCourse){
+        Double usrOppositeCourse = (userCourse + 180) % 360;
+        return Math.abs(neighCourse - usrOppositeCourse) < opposingLaneThreshold ;
+    }
+    private boolean isOnSameLane(Double userCourse, Double neighCourse){
+        return Math.abs(neighCourse - userCourse) < sameLaneThreshold ;
     }
 
     @Override

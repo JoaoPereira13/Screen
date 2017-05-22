@@ -30,19 +30,22 @@ import java.util.List;
 public class TrackCustomRoute extends AppCompatActivity implements PermissionsListener {
 
     private static final String TAG = "debug";
+    private static final String userID = "0000";
+
     private static final int refreshPeriodMs = 500;
     private static final int initialDelayMs = 2000;
     private static final int zoomLevel = 16;
     private static final int receivePort = 13892;
     private static final int destinyPort = 13891;
+    private static final int opposingLaneThreshold = 5;
+    private static final int sameLaneThreshold = 5;
     private static final boolean enableTracking = true;
-    private static final String userID = "0000";
 
     private PermissionsManager permissionsManager;
     private MapView mapView;
     private MapboxMap map;
-    private LatLng userPosition = null;
-    private LatLng neighPosition;
+    private GpsData userData = null;
+    private GpsData neighData;
     private WifiManager wifi;
 
     private MarkerViewOptions userMarker = null;
@@ -63,15 +66,11 @@ public class TrackCustomRoute extends AppCompatActivity implements PermissionsLi
                     int i = 0;
                     while(i < nodesData.nodesIndex.size()) {
                         if(!nodesData.nodesIndex.get(i).equals(nodesData.getUserId())){         /** Neighbor position */
-                            neighPosition = new LatLng(
-                                    Double.parseDouble(nodesData.getNeighData(nodesData.nodesIndex.get(i)).getLat()),
-                                    Double.parseDouble(nodesData.getNeighData(nodesData.nodesIndex.get(i)).getLon()));
+                            neighData = nodesData.getNeighData(nodesData.nodesIndex.get(i));
                             refreshNeighPosition(nodesData.nodesIndex.get(i));
                         }
                         else if(nodesData.isUserDataAvailable()){                               /**  User position */
-                            userPosition = new LatLng(
-                                    Double.parseDouble(nodesData.getUserData().getLat()),
-                                    Double.parseDouble(nodesData.getUserData().getLon()));
+                            userData = nodesData.getUserData();
                             refreshUserPosition();
                         }
                         i++;
@@ -85,19 +84,10 @@ public class TrackCustomRoute extends AppCompatActivity implements PermissionsLi
     private void init(){
         Log.i(TAG,"\nPermissions granted. Starting the app...");
 
-        // TODO Automate the proccess to set the user Id
-        nodesData.setUserId(userID);
-
-        /** Extract the IP address of the OBU from the SSID */
-        wifi = (WifiManager) getApplicationContext().getSystemService(Context.WIFI_SERVICE);
-        WifiInfo info = wifi.getConnectionInfo();
-        Log.i(TAG,"SSID: "+info.getSSID());
-        String[] separated;
-        separated = info.getSSID().toString().split("netRider");
-        String destinyIP = "10."+separated[1].substring(0,1)+"."+separated[1].substring(1,3)+".1";
+        nodesData.setUserId(getUsrId());
 
         /** Start the thread responsible for receiving the GPS data from the OBU */
-        receiveGpsData= new ReceiveGpsData(receivePort, destinyPort, destinyIP, nodesData);
+        receiveGpsData= new ReceiveGpsData(receivePort, destinyPort, getUsrIP(), nodesData);
         receiveGpsData.execute();
 
         /** Initialize the lists containing the neighbor markers and index */
@@ -114,14 +104,14 @@ public class TrackCustomRoute extends AppCompatActivity implements PermissionsLi
 
                 /** Add the user marker in the starting position */
                 userMarker = new MarkerViewOptions()
-                        .position(userPosition)
+                        .position(userData.getLatLng())
                         .icon(icon);
 
                 /** Move the camera to the starting position */
                 map.moveCamera(CameraUpdateFactory.newCameraPosition(new CameraPosition.Builder()
-                        .target(userPosition)
+                        .target(userData.getLatLng())
                         .zoom(zoomLevel)
-                        .bearing(Double.parseDouble(nodesData.getUserData().getCourse()))
+                        .bearing(userData.getCourseDouble())
                         .build()));
                 map.addMarker(userMarker);
                 return;
@@ -129,12 +119,12 @@ public class TrackCustomRoute extends AppCompatActivity implements PermissionsLi
 
             /** Move the camera along the user position */
             map.moveCamera(CameraUpdateFactory.newCameraPosition(new CameraPosition.Builder()
-                    .target(userPosition)
+                    .target(userData.getLatLng())
                     .bearing(Double.parseDouble(nodesData.getUserData().getCourse()))
                     .build()));
             /** Move the user marker */
             map.updateMarker(userMarker
-                    .position(userPosition).getMarker());
+                    .position(userData.getLatLng()).getMarker());
         }
     }
 
@@ -143,23 +133,77 @@ public class TrackCustomRoute extends AppCompatActivity implements PermissionsLi
         if (getIndex(id) == -1) {           /** New marker */
             addNeighMarker(id);
         }
-        else{
-            /** Move the Neighbor marker */
-            map.updateMarker(neighMarkers.get(getIndex(id))
-                    .position(neighPosition).getMarker());
+        else if(nodesData.isUserDataAvailable()){
+            /** Car in the same lane */
+            if(isOnOpposingLane(userData.getCourseDouble(), neighData.getCourseDouble())){
+                IconFactory iconFactory = IconFactory.getInstance(TrackCustomRoute.this);
+                Icon icon = iconFactory.fromResource(R.mipmap.red_round_marker);
+
+                map.updateMarker(neighMarkers.get(getIndex(id))
+                        .position(neighData.getLatLng())
+                        .icon(icon)
+                        .getMarker());
+            }
+            /** Car in the opposing lane */
+            else if(isOnSameLane(userData.getCourseDouble(), neighData.getCourseDouble())){
+                IconFactory iconFactory = IconFactory.getInstance(TrackCustomRoute.this);
+                Icon icon = iconFactory.fromResource(R.mipmap.light_blue_round_marker);
+
+                map.updateMarker(neighMarkers.get(getIndex(id))
+                        .position(neighData.getLatLng())
+                        .icon(icon)
+                        .getMarker());
+            }
+            else{
+                IconFactory iconFactory = IconFactory.getInstance(TrackCustomRoute.this);
+                Icon icon = iconFactory.fromResource(R.mipmap.green_round_marker);
+
+                map.updateMarker(neighMarkers.get(getIndex(id))
+                        .position(neighData.getLatLng())
+                        .icon(icon)
+                        .getMarker());
+            }
         }
     }
 
     private void addNeighMarker(String id){
         /** Get the neighbor icon */
         IconFactory iconFactory = IconFactory.getInstance(TrackCustomRoute.this);
-        Icon icon = iconFactory.fromResource(R.mipmap.light_blue_round_marker);
+        Icon icon = iconFactory.fromResource(R.mipmap.green_round_marker);
 
-        neighMarkers.add(new MarkerViewOptions().position(neighPosition).icon(icon));
+        neighMarkers.add(new MarkerViewOptions().position(neighData.getLatLng()).icon(icon));
         neighsIndex.add(id);
         map.addMarker(neighMarkers.get(getIndex(id)));
     }
 
+
+    private String getUsrIP(){
+        /** Extract the IP address of the OBU from the SSID */
+        wifi = (WifiManager) getApplicationContext().getSystemService(Context.WIFI_SERVICE);
+        WifiInfo info = wifi.getConnectionInfo();
+        Log.i(TAG,"SSID: "+info.getSSID());
+        String[] separated;
+        separated = info.getSSID().toString().split("netRider");
+        return "10."+separated[1].substring(0,1)+"."+separated[1].substring(1,3)+".1";
+    }
+
+    private String getUsrId(){
+        /** Extract the ID address of the OBU from the SSID */
+        wifi = (WifiManager) getApplicationContext().getSystemService(Context.WIFI_SERVICE);
+        WifiInfo info = wifi.getConnectionInfo();
+        Log.i(TAG,"SSID: "+info.getSSID());
+        String[] separated;
+        separated = info.getSSID().toString().split("netRider");
+        return separated[1].substring(0,3);
+    }
+
+    private boolean isOnOpposingLane(Double userCourse, Double neighCourse){
+        Double usrOppositeCourse = (userCourse + 180) % 360;
+        return Math.abs(neighCourse - usrOppositeCourse) < opposingLaneThreshold ;
+    }
+    private boolean isOnSameLane(Double userCourse, Double neighCourse){
+        return Math.abs(neighCourse - userCourse) < sameLaneThreshold ;
+    }
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);

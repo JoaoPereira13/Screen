@@ -1,5 +1,7 @@
 package com.example.screen;
 
+import com.mapbox.mapboxsdk.geometry.LatLng;
+
 public class GpsData {
 
     private String id;
@@ -32,23 +34,45 @@ public class GpsData {
         speed = Speed;
         course = Course;
     }
-    public GpsData getGpsData(){
-        return this;
-    }
+
     public String getId(){
         return id;
     }
+
     public String getLat(){
         return lat;
     }
+    public Double getLatDouble(){
+        return Double.parseDouble(lat);
+    }
+
     public String getLon(){
         return lon;
     }
+    public Double getLonDouble(){
+        return Double.parseDouble(lon);
+    }
+
     public String getSpeed(){
         return speed;
     }
+    public Double getSpeedDouble(){
+        return Double.parseDouble(speed);
+    }
+
     public String getCourse(){
         return course;
+    }
+    public Double getCourseDouble(){
+        return Double.parseDouble(course);
+    }
+
+    public GpsData getGpsData(){
+        return this;
+    }
+
+    public LatLng getLatLng(){
+        return new LatLng(Double.parseDouble(lat), Double.parseDouble(lon));
     }
 
     @Override

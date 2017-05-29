@@ -1,6 +1,7 @@
 package com.example.screen;
 
 import android.os.AsyncTask;
+import android.os.SystemClock;
 import android.util.Log;
 
 import java.io.IOException;
@@ -46,11 +47,14 @@ public class ReceiveGpsData extends AsyncTask<Void, String,Void> {
             datagramPacket = new DatagramPacket(message,message.length);
 
             while (true){
+
+                if (isCancelled()) break;
+
                 datagramSocket.receive(datagramPacket);
                 /** Log.i(TAG, "\nDatagram Packet Received..."); */
 
                 text = new String(message, 0, datagramPacket.getLength());
-                /**Log.i(TAG, "\nMessage Received: "+text); */
+                Log.i(TAG, "\nMessage Received: "+text);
 
                 separated = text.split(" ");
 
@@ -60,6 +64,8 @@ public class ReceiveGpsData extends AsyncTask<Void, String,Void> {
                         separated[2],
                         separated[3],
                         separated[4]);
+
+                SystemClock.sleep(1);
             }
        } catch (UnknownHostException e) {
             e.printStackTrace();

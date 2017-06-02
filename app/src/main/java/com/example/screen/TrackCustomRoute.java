@@ -36,7 +36,7 @@ public class TrackCustomRoute extends AppCompatActivity implements PermissionsLi
     private static final String TAG = "debug";
     private static final int refreshPeriodMs = 500;
     private static final int initialDelayMs = 2000;
-    private static final int zoomLevel = 16;
+    private static final int zoomLevel = 18;
     private static final int receivePort = 13892;
     private static final int destinyPort = 13891;
     private static final int opposingLaneThreshold = 5;
@@ -97,14 +97,11 @@ public class TrackCustomRoute extends AppCompatActivity implements PermissionsLi
         neighData = new GpsData();
         userData = new GpsData();
         nodesData = new NodesData();
-        nodesData.setUserId(getUsrId());
+        nodesData.setUserId("000");
 
         /** Start the thread responsible for receiving the GPS data from the OBU */
         receiveGpsData= new ReceiveGpsData(receivePort, destinyPort, getUsrIP(), nodesData);
         receiveGpsData.execute();
-
-        Log.i(TAG,"isCanceled: "+receiveGpsData.isCancelled());
-
 
         /** Initialize the lists containing the neighbor markers and index */
         neighMarkers = new ArrayList<>();
@@ -206,9 +203,9 @@ public class TrackCustomRoute extends AppCompatActivity implements PermissionsLi
         /** Extract the IP address of the OBU from the SSID */
         wifi = (WifiManager) getApplicationContext().getSystemService(Context.WIFI_SERVICE);
         WifiInfo info = wifi.getConnectionInfo();
-        Log.i(TAG,"SSID: "+info.getSSID());
         String[] separated;
         separated = info.getSSID().toString().split("netRider");
+        Log.i(TAG,"IP: "+"10."+separated[1].substring(0,1)+"."+separated[1].substring(1,3)+".1");
         return "10."+separated[1].substring(0,1)+"."+separated[1].substring(1,3)+".1";
     }
 
@@ -216,9 +213,10 @@ public class TrackCustomRoute extends AppCompatActivity implements PermissionsLi
         /** Extract the ID address of the OBU from the SSID */
         wifi = (WifiManager) getApplicationContext().getSystemService(Context.WIFI_SERVICE);
         WifiInfo info = wifi.getConnectionInfo();
-        Log.i(TAG,"SSID: "+info.getSSID());
         String[] separated;
         separated = info.getSSID().toString().split("netRider");
+        Log.i(TAG,"ID: "+separated[1].substring(0,3));
+
         return separated[1].substring(0,3);
     }
 

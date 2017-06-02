@@ -8,16 +8,22 @@ import java.io.IOException;
 import java.net.DatagramPacket;
 import java.net.DatagramSocket;
 import java.net.InetAddress;
+import java.net.SocketTimeoutException;
 import java.net.UnknownHostException;
 
 public class ReceiveGpsData extends AsyncTask<Void, String,Void> {
 
-    private static final String TAG = "Debug";
+    private static final String TAG = "debug";
+    private static final int TIMEOUT_MS = 5000;
 
     private int dstPort;
     private int recvPort;
     private String dstIp;
     private NodesData nodesData;
+    private DatagramSocket datagramSocket = null;
+    private DatagramPacket datagramPacket;
+    private byte[] message = null;
+
 
     ReceiveGpsData(int RecvPort, int DstPort, String DstIP, NodesData nData){
         recvPort = RecvPort;
@@ -29,20 +35,19 @@ public class ReceiveGpsData extends AsyncTask<Void, String,Void> {
     @Override
     protected Void doInBackground(Void... params) {
 
-        DatagramSocket datagramSocket = null;
-        DatagramPacket datagramPacket;
-        byte[] message = new byte[1500];
+        message = new byte[1500];
 
         String text;
         String[] separated;
         try {
             datagramSocket = new DatagramSocket(recvPort);
+            datagramSocket.setSoTimeout(TIMEOUT_MS);
 
             InetAddress dstAddress = InetAddress.getByName(dstIp);
 
             datagramPacket = new DatagramPacket(message, message.length, dstAddress, dstPort);
             datagramSocket.send(datagramPacket);
-            Log.i(TAG,"Message sent");
+            Log.i(TAG,"Requesting GPS Data From: "+dstIp+":"+dstPort);
 
             datagramPacket = new DatagramPacket(message,message.length);
 
@@ -50,11 +55,19 @@ public class ReceiveGpsData extends AsyncTask<Void, String,Void> {
 
                 if (isCancelled()) break;
 
-                datagramSocket.receive(datagramPacket);
-                /** Log.i(TAG, "\nDatagram Packet Received..."); */
+                try {
+                    /** Log.i(TAG, "Trying to receive..."); */
+                    datagramSocket.receive(datagramPacket);
+                    /** Log.i(TAG, "\nDatagram Packet Received..."); */
+                }catch (SocketTimeoutException e) {
+                    /** timeout exception */
+                    Log.i(TAG, "IOException: " + e.toString());
+                    sendRequestPacket();
+                    continue;
+                }
 
                 text = new String(message, 0, datagramPacket.getLength());
-                Log.i(TAG, "\nMessage Received: "+text);
+                /** Log.i(TAG, "\nMessage Received: "+text); */
 
                 separated = text.split(" ");
 
@@ -72,7 +85,7 @@ public class ReceiveGpsData extends AsyncTask<Void, String,Void> {
             Log.i(TAG, "UnknownHostException: " + e.toString());
         } catch (IOException e) {
             e.printStackTrace();
-            Log.i(TAG,"IOException: " + e.toString());
+            Log.i(TAG, "IOException: " + e.toString());
         } finally {
             if (datagramSocket != null)
                 datagramSocket.close();
@@ -84,5 +97,22 @@ public class ReceiveGpsData extends AsyncTask<Void, String,Void> {
     protected void onProgressUpdate(String... values) {
         super.onProgressUpdate(values);
         nodesData.updateNodesData(new GpsData(values[0], values[1], values[2], values[3], values[4]));
+    }
+
+    private void sendRequestPacket() {
+        try {
+            InetAddress dstAddress = InetAddress.getByName(dstIp);
+
+            datagramPacket = new DatagramPacket(message, message.length, dstAddress, dstPort);
+            datagramSocket.send(datagramPacket);
+            Log.i(TAG, "Requesting GPS Data From: " + dstIp + ":" + dstPort);
+
+        } catch (UnknownHostException e) {
+            e.printStackTrace();
+            Log.i(TAG, "UnknownHostException: " + e.toString());
+        } catch (IOException e) {
+            e.printStackTrace();
+            Log.i(TAG, "IOException: " + e.toString());
+        }
     }
 }

@@ -11,6 +11,31 @@ import android.util.Log;
 import android.view.View;
 import android.widget.Button;
 
+/** For the traffic signal status */
+/**
+TODO CREATE AN ADEQUATE DATA STRUCTURE (WITH PROPER MANAGEMENT CAPABILITIES) FOR THE TRAFFIC SIGNAL DATA
+TODO ON RECEIVEGPSDATA - ONPROGRESSUPDATE() - ADD A LABELING METHOD TO DISTINGUISH BETWEEN THE VEHICULAR DATA AND THE TRAFFIC SIGNAL DATA
+TODO ADD THE PROCESSING FOR THE TRAFFIC SIGNALS DATA
+
+TODO IMPLEMENT THE ALGORITHM THAT MAKES USE OF:
+TODO - THE HEADING PRESENT IN THE TRAFFIC SIGNAL DATA
+TODO - THE HEADING PRESENT THE USER VEHICLE DATA
+TODO - THE POSITION PRESENT IN THE TRAFFIC SIGNAL
+TODO - THE POSITION PRESENT IN THE USER VEHICLE
+TODO TO DETERMINE IF THE DATA IS RELEVANT TO BE DISPLAYED
+
+TODO CREATE AT LEAST THREE ICONS - ONE FOR EACH TYPE OF TRAFFIC SIGNAL
+TODO DEVELOP A NEW ACTIVITY TO ENABLE THE DISPLAY OF THE TRAFFIC SIGNAL DATA. SET A REFRESH RATE COMPATIBLE WITH THE VEHICULAR DATA.
+TODO MAYBE JOIN THE TWO INTO A SIGNAL ACTIVITY CAPABLE OF ACCESSING AND MANAGING BOTH TYPES OF DATA, CORRECTLY EVALUATES IT AND DISPLAYS THE RELEVANT DATA
+
+ 
+
+TODO REFRESH
+
+TODO
+
+*/
+
 public class MainActivity extends AppCompatActivity {
 
     public final static String TAG = "debug";
@@ -72,7 +97,7 @@ public class MainActivity extends AppCompatActivity {
                     Log.i(TAG,"Tracking Mode Button Listener");
 
                     Intent intent = new Intent(MainActivity.this,
-                            TrackCustomRoute.class);
+                            DisplayMap.class);
                     startActivity(intent);
                 }
             }
@@ -84,7 +109,7 @@ public class MainActivity extends AppCompatActivity {
                 if (v.getId() == R.id.btnOffline) {
                     Log.i(TAG,"Offline Map Manager Button Listener");
 
-                    Intent intent = new Intent(MainActivity.this, OfflineMap.class);
+                    Intent intent = new Intent(MainActivity.this, OfflineMapSupport.class);
                     startActivity(intent);
                 }
             }

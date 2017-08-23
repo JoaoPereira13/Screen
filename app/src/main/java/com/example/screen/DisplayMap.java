@@ -1,8 +1,6 @@
 package com.example.screen;
 
-import android.animation.ObjectAnimator;
 import android.animation.TypeEvaluator;
-import android.animation.ValueAnimator;
 import android.content.Context;
 import android.net.wifi.WifiInfo;
 import android.net.wifi.WifiManager;
@@ -27,21 +25,20 @@ import com.mapbox.mapboxsdk.maps.OnMapReadyCallback;
 import com.mapbox.services.android.telemetry.permissions.PermissionsListener;
 import com.mapbox.services.android.telemetry.permissions.PermissionsManager;
 
-import java.util.ArrayList;
+import java.util.Hashtable;
 import java.util.List;
 
 
-public class TrackCustomRoute extends AppCompatActivity implements PermissionsListener {
+public class DisplayMap extends AppCompatActivity implements PermissionsListener {
 
     private static final String TAG = "debug";
-    private static final int refreshPeriodMs = 500;
+    private static final int refreshPeriodMs = 1000;
     private static final int initialDelayMs = 2000;
-    private static final int zoomLevel = 18;
+    private static final int zoomLevel = 17;
     private static final int receivePort = 13892;
     private static final int destinyPort = 13891;
     private static final int opposingLaneThreshold = 5;
     private static final int sameLaneThreshold = 5;
-    private static final int markerAnimationTimeMs = 600;
     private static final int cameraAnimationTimeMs = 600;
 
     private static final boolean enableTracking = true;
@@ -54,37 +51,27 @@ public class TrackCustomRoute extends AppCompatActivity implements PermissionsLi
     private PermissionsManager permissionsManager;
     private MapView mapView;
     private MapboxMap map;
-    private GpsData userData = null;
-    private GpsData neighData;
+
     private WifiManager wifi;
+    private ReceiveData receiveData;
+
+    private VehicularTable vehicularTable = null;
+    private TrafficSignalTable trafficSignalTable = null;
 
     private Marker userMarker = null;
-    private List<Marker> neighMarkers;
-    private List<String> neighsIndex = null;
-    private NodesData nodesData = null;
-    private ReceiveGpsData receiveGpsData;
+    private Hashtable<String, Marker> neighbourMarkers;
 
     private static Handler handler = new Handler();
     private Runnable runnable = new Runnable() {
         @Override
         public void run() {
-            TrackCustomRoute.this.runOnUiThread(new Runnable() {
+            DisplayMap.this.runOnUiThread(new Runnable() {
                 /** Loop function */
                 public void run() {
 
-                    /** Update the nodes positions */
-                    int i = 0;
-                    while(i < nodesData.nodesIndex.size()) {
-                        if(!nodesData.nodesIndex.get(i).equals(nodesData.getUserId())){         /** Neighbor position */
-                            neighData = nodesData.getNeighData(nodesData.nodesIndex.get(i));
-                            refreshNeighPosition(nodesData.nodesIndex.get(i));
-                        }
-                        else if(nodesData.isUserDataAvailable()){                               /**  User position */
-                            userData = nodesData.getUserData();
-                            refreshUserPosition();
-                        }
-                        i++;
-                    }
+                    /** Update the user and neighbours markers positions */
+                    if(vehicularTable.isUserDataAvailable())
+                        refreshMarkers(vehicularTable.getUserData(), vehicularTable.getNeighboursData());
                 }
             });
             handler.postDelayed(this, refreshPeriodMs);
@@ -94,25 +81,29 @@ public class TrackCustomRoute extends AppCompatActivity implements PermissionsLi
     private void init(){
         Log.i(TAG,"\nPermissions granted. Starting the app...");
 
-        neighData = new GpsData();
-        userData = new GpsData();
-        nodesData = new NodesData();
-        nodesData.setUserId("000");
+        trafficSignalTable = new TrafficSignalTable();
+        vehicularTable = new VehicularTable();
+        vehicularTable.setUserId("0003");
 
         /** Start the thread responsible for receiving the GPS data from the OBU */
-        receiveGpsData= new ReceiveGpsData(receivePort, destinyPort, getUsrIP(), nodesData);
-        receiveGpsData.execute();
+        receiveData = new ReceiveData(receivePort, destinyPort, getUsrIP(), vehicularTable, trafficSignalTable);
+        receiveData.execute();
 
-        /** Initialize the lists containing the neighbor markers and index */
-        neighMarkers = new ArrayList<>();
-        neighsIndex = new ArrayList<>();
+        /** Initialize the lists containing the neighbour markers */
+        neighbourMarkers = new Hashtable<String, Marker>();
+
     }
 
-    private void refreshUserPosition(){
+    private void refreshMarkers(VehicularData userData, List<VehicularData> neighbourDataList){
+        refreshUserMarker(userData);
+        refreshNeighbourMarkers(userData, neighbourDataList);           /** User Data is used to determine the neighbor lane */
+    }
+
+    private void refreshUserMarker(VehicularData userData){
         if(enableTracking) {
-            if(userMarker==null){
+            if(userMarker == null){                                     /** First user position */
                 /** Get the user icon */
-                IconFactory iconFactory = IconFactory.getInstance(TrackCustomRoute.this);
+                IconFactory iconFactory = IconFactory.getInstance(DisplayMap.this);
                 Icon icon = iconFactory.fromResource(R.mipmap.purple_round_marker);
 
                 /** Move the camera to the starting position */
@@ -131,40 +122,54 @@ public class TrackCustomRoute extends AppCompatActivity implements PermissionsLi
             /** Move the camera along the user position */
             map.animateCamera(CameraUpdateFactory.newCameraPosition(new CameraPosition.Builder()
                     .target(userData.getLatLng())
-                    .bearing(Double.parseDouble(nodesData.getUserData().getCourse()))
+                    .bearing(userData.getCourseDouble())
                     .build()),cameraAnimationTimeMs);
-            /** Move the user marker */
-            ValueAnimator markerAnimator = ObjectAnimator.ofObject(userMarker, "position",
-                    new LatLngEvaluator(), userMarker
-                            .getPosition(), userData.getLatLng());
 
-            markerAnimator.setDuration(markerAnimationTimeMs);
-            markerAnimator.start();
+            /** Update the user marker position */
+            userMarker.setPosition(userData.getLatLng());
+
         }
     }
 
-    private void refreshNeighPosition(String id) {
-        /** Create the Neighbor marker */
-        if (getIndex(id) == -1) {           /** New marker */
-            addNeighMarker(id);
+    private void refreshNeighbourMarkers(VehicularData userData, List<VehicularData> neighbourDataList){
+        int i = 0;
+        while( i < neighbourDataList.size()){
+            refreshNeighborMarker(userData, neighbourDataList.get(i));
+            i++;
         }
-        else if(nodesData.isUserDataAvailable()){
+    }
+
+    private void refreshNeighborMarker(VehicularData userData, VehicularData neighbourData) {
+        if(!neighbourMarkers.containsKey(neighbourData.getId())){           /** New marker */
+            addNeighbourMarker(neighbourData);
+        }
+        else if(vehicularTable.isUserDataAvailable()){
             /** Car in the same lane */
-            if(isOnOpposingLane(userData.getCourseDouble(), neighData.getCourseDouble()))
-                moveNeighMarker(id, MARKER_COLOR_RED);
+            if(isOnOpposingLane(userData.getCourseDouble(), neighbourData.getCourseDouble()))
+                moveNeighMarker(neighbourData, MARKER_COLOR_RED);
 
             /** Car in the opposing lane */
-            else if(isOnSameLane(userData.getCourseDouble(), neighData.getCourseDouble()))
-                moveNeighMarker(id, MARKER_COLOR_LIGHT_BLUE);
+            else if(isOnSameLane(userData.getCourseDouble(), neighbourData.getCourseDouble()))
+                moveNeighMarker(neighbourData, MARKER_COLOR_LIGHT_BLUE);
 
             else
-                moveNeighMarker(id, MARKER_COLOR_GREEN);
+                moveNeighMarker(neighbourData, MARKER_COLOR_GREEN);
         }
     }
 
-    private void moveNeighMarker(String id, int markerColor){
+    private void addNeighbourMarker(VehicularData neighbourData){
+        /** Get the neighbor icon */
+        IconFactory iconFactory = IconFactory.getInstance(DisplayMap.this);
+        Icon icon = iconFactory.fromResource(R.mipmap.green_round_marker);
 
-        IconFactory iconFactory = IconFactory.getInstance(TrackCustomRoute.this);
+        neighbourMarkers.put(neighbourData.getId(), map.addMarker(new MarkerViewOptions()
+                .position(neighbourData.getLatLng())
+                .icon(icon)));
+    }
+
+    private void moveNeighMarker(VehicularData neighbourData, int markerColor){
+        String id = neighbourData.getId();
+        IconFactory iconFactory = IconFactory.getInstance(DisplayMap.this);
         Icon icon = null;
 
         if(markerColor == MARKER_COLOR_RED)
@@ -176,27 +181,9 @@ public class TrackCustomRoute extends AppCompatActivity implements PermissionsLi
         if(markerColor == MARKER_COLOR_GREEN)
             icon = iconFactory.fromResource(R.mipmap.green_round_marker);
 
-        /** Set the marker color */
-        neighMarkers.get(getIndex(id)).setIcon(icon);
-
-        /** Move the neighbor marker */
-        ValueAnimator markerAnimator = ObjectAnimator.ofObject(neighMarkers.get(getIndex(id)), "position",
-                new LatLngEvaluator(), neighMarkers.get(getIndex(id))
-                        .getPosition(), neighData.getLatLng());
-
-        markerAnimator.setDuration(markerAnimationTimeMs);
-        markerAnimator.start();
-    }
-
-    private void addNeighMarker(String id){
-        /** Get the neighbor icon */
-        IconFactory iconFactory = IconFactory.getInstance(TrackCustomRoute.this);
-        Icon icon = iconFactory.fromResource(R.mipmap.green_round_marker);
-
-        neighsIndex.add(id);
-        neighMarkers.add(map.addMarker(new MarkerViewOptions()
-                .position(neighData.getLatLng())
-                .icon(icon)));
+        /** update the marker */
+        neighbourMarkers.get(id).setIcon(icon);
+        neighbourMarkers.get(id).setPosition(neighbourData.getLatLng());
     }
 
     private String getUsrIP(){
@@ -243,10 +230,6 @@ public class TrackCustomRoute extends AppCompatActivity implements PermissionsLi
         }
     }
 
-    private int getIndex(String id) {
-        return neighsIndex.indexOf(id);
-    }
-
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
@@ -267,9 +250,9 @@ public class TrackCustomRoute extends AppCompatActivity implements PermissionsLi
                 map = mapboxMap;
                 map.getUiSettings().setAllGesturesEnabled(!enableTracking);
 
-                permissionsManager = new PermissionsManager(TrackCustomRoute.this);
-                if (!PermissionsManager.areLocationPermissionsGranted(TrackCustomRoute.this)) {
-                    permissionsManager.requestLocationPermissions(TrackCustomRoute.this);
+                permissionsManager = new PermissionsManager(DisplayMap.this);
+                if (!PermissionsManager.areLocationPermissionsGranted(DisplayMap.this)) {
+                    permissionsManager.requestLocationPermissions(DisplayMap.this);
                 } else{
                     init();
                 }
@@ -317,7 +300,7 @@ public class TrackCustomRoute extends AppCompatActivity implements PermissionsLi
         /** Removes the previously set timer */
         handler.removeCallbacks(runnable);
         /** Cancel the thread receiving the gps data */
-        receiveGpsData.cancel(true);
+        receiveData.cancel(true);
     }
 
     @Override

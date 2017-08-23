@@ -4,6 +4,7 @@ import android.support.v7.app.AppCompatActivity;
 import android.os.Bundle;
 
 import com.mapbox.mapboxsdk.Mapbox;
+
 import com.mapbox.mapboxsdk.camera.CameraPosition;
 import com.mapbox.mapboxsdk.camera.CameraUpdateFactory;
 import com.mapbox.mapboxsdk.geometry.LatLng;
@@ -11,13 +12,16 @@ import com.mapbox.mapboxsdk.maps.MapView;
 import com.mapbox.mapboxsdk.maps.MapboxMap;
 import com.mapbox.mapboxsdk.maps.OnMapReadyCallback;
 
-import static com.example.screen.R.id.mapView;
 
 public class ViewMap extends AppCompatActivity {
 
     private MapView mapView;
     private MapboxMap map;
-    private LatLng pos = new LatLng(40.629341,-8.654698);
+    private static final String TAG = "debug";
+
+    private LatLng pos = new LatLng(40.631908, -8.661871);
+    private int zoomlevel = 17;
+    private double bearing = 0;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -42,8 +46,8 @@ public class ViewMap extends AppCompatActivity {
                 /** Move the camera to the starting position */
                 map.moveCamera(CameraUpdateFactory.newCameraPosition(new CameraPosition.Builder()
                         .target(pos)
-                        .zoom(10)
-                        .bearing(0)
+                        .zoom(zoomlevel)
+                        .bearing(bearing)
                         .build()));
             }
         });
@@ -86,6 +90,7 @@ public class ViewMap extends AppCompatActivity {
     }
 
     @Override
+
     protected void onSaveInstanceState(Bundle outState) {
         super.onSaveInstanceState(outState);
         mapView.onSaveInstanceState(outState);

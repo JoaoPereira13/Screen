@@ -3,6 +3,7 @@ package com.example.screen;
 import android.os.AsyncTask;
 import android.os.SystemClock;
 import android.util.Log;
+import android.widget.Toast;
 
 import java.io.IOException;
 import java.net.DatagramPacket;
@@ -11,29 +12,46 @@ import java.net.InetAddress;
 import java.net.SocketTimeoutException;
 import java.net.UnknownHostException;
 
-public class ReceiveGpsData extends AsyncTask<Void, String,Void> {
+import static com.mapbox.mapboxsdk.Mapbox.getApplicationContext;
+
+public class ReceiveData extends AsyncTask<Void, String,Void> {
 
     private static final String TAG = "debug";
     private static final int TIMEOUT_MS = 5000;
+    ToastHandler mToastHandler = new ToastHandler(getApplicationContext());
 
     private int dstPort;
     private int recvPort;
     private String dstIp;
-    private NodesData nodesData;
+    private VehicularTable vehicularTable;
+    private TrafficSignalTable trafficSignalTable;
     private DatagramSocket datagramSocket = null;
     private DatagramPacket datagramPacket;
     private byte[] message = null;
 
 
-    ReceiveGpsData(int RecvPort, int DstPort, String DstIP, NodesData nData){
+
+    ReceiveData(int RecvPort, int DstPort, String DstIP, VehicularTable vTable, TrafficSignalTable tsTable){
         recvPort = RecvPort;
         dstPort = DstPort;
         dstIp = DstIP;
-        nodesData = nData;
+        vehicularTable = vTable;
+        trafficSignalTable = tsTable;
     }
 
     @Override
     protected Void doInBackground(Void... params) {
+        /**
+         * Thread running a Loop function -> runs until this thread is cancelled on the
+         * DisplayMap activity
+         *
+         * Receives the vehicular data
+         * Stores this data on vehicularTable
+         *
+         * Receives the traffic signal data
+         * If the socket times out during the reception, send a request packet to the OBU
+         * to restart this process
+         */
 
         message = new byte[1500];
 
@@ -63,11 +81,12 @@ public class ReceiveGpsData extends AsyncTask<Void, String,Void> {
                     /** timeout exception */
                     Log.i(TAG, "IOException: " + e.toString());
                     sendRequestPacket();
+                    mToastHandler.showToast("Connection Unavailable. Trying to reconnect...", Toast.LENGTH_SHORT);
                     continue;
                 }
 
                 text = new String(message, 0, datagramPacket.getLength());
-                /** Log.i(TAG, "\nMessage Received: "+text); */
+                /** Log.i(TAG, "\nPacket Received: "+text);*/
 
                 separated = text.split(" ");
 
@@ -96,7 +115,14 @@ public class ReceiveGpsData extends AsyncTask<Void, String,Void> {
     @Override
     protected void onProgressUpdate(String... values) {
         super.onProgressUpdate(values);
-        nodesData.updateNodesData(new GpsData(values[0], values[1], values[2], values[3], values[4]));
+        /** IF vehicular data - format: [ID Lon Lat Speed Course] */
+        //if...
+        vehicularTable.updateVehicularTable(new VehicularData(values[0], values[1], values[2], values[3], values[4]));
+        //else if...
+
+        //trafficSignalTable.updateTrafficSignalTable(new TrafficSignalData(values[0], values[1], values[2], values[3], values[4]));
+        /** IF traffic signal data - format: [ID Lon Lat Course Message] */
+
     }
 
     private void sendRequestPacket() {

@@ -31,29 +31,32 @@ import java.util.List;
 public class Demo extends AppCompatActivity implements PermissionsListener {
 
     private static final String TAG = "debug";
-    private static final int refreshPeriodMs = 500;
+    private static final int refreshPeriodMs = 1000;
     private static final int initialDelayMs = 2000;
-    private static final int zoomLevel = 16;
-    private static final int opposingLaneThreshold = 5;
-    private static final int sameLaneThreshold = 5;
-    private static final String userId = "681";
-    private static final String fileName = "OverT1_Total.txt";
+    private static final int zoomLevel = 17;
+    private static final int opposingLaneThreshold = 60;
+    private static final int sameLaneThreshold = 20;
+    private static final int sampleDelay = 7;
+    private static final String userId = "625";
+    private static final String fileName = "allObu.txt";
 
     private static int posGen = 0;
-    private static int courseGen = 0;
+    private static int sampleDelayAux = 0;
 
     private PermissionsManager permissionsManager;
     private MapView mapView;
     private MapboxMap map;
 
     private MarkerViewOptions userMarker = null;
-    private List<GpsData> usrPoints;
-    private List<List<GpsData>> neighPoints;
+    private List<VehicularData> usrPoints;
+    private List<List<VehicularData>> neighPoints;
     private List<MarkerViewOptions> neighMarkers;
     private List<String> neighsIndex = null;
     private List<Integer> neighPosGen;
-    private GpsData userData;
-    private GpsData neighData;
+    private VehicularData userData;
+    private VehicularData neighData;
+    private boolean isVisible = true;
+
 
     private static Handler handler = new Handler();
     private Runnable runnable = new Runnable() {
@@ -72,9 +75,18 @@ public class Demo extends AppCompatActivity implements PermissionsListener {
                     /** Update the neighbors position */
                     int i = 0;
                     while(i < neighsIndex.size()) {
-                        neighData = getNextNeighPosition(neighsIndex.get(i));
-                        refreshNeighPosition(neighsIndex.get(i));
+                        if(neighsIndex.get(i).equals("683")){
+                            if(sampleDelayAux >= sampleDelay) {
+                                neighData = getNextNeighPosition(neighsIndex.get(i));
+                                refreshNeighPosition(neighsIndex.get(i));
+                            }
+                        }
+                        else{
+                                neighData = getNextNeighPosition(neighsIndex.get(i));
+                                refreshNeighPosition(neighsIndex.get(i));
+                        }
                         i++;
+                        sampleDelayAux++;
                     }
                 }
             });
@@ -87,7 +99,7 @@ public class Demo extends AppCompatActivity implements PermissionsListener {
 
         /** Initialize the Lists */
         usrPoints = new ArrayList<>();
-        neighPoints = new ArrayList<List<GpsData>>();
+        neighPoints = new ArrayList<List<VehicularData>>();
         neighMarkers = new ArrayList<>();
         neighsIndex = new ArrayList<>();
         neighPosGen = new ArrayList<>();
@@ -138,6 +150,7 @@ public class Demo extends AppCompatActivity implements PermissionsListener {
             map.updateMarker(neighMarkers.get(getIndex(id))
                     .position(neighData.getLatLng())
                     .icon(icon)
+                    .visible(isVisible)
                     .getMarker());
         }
         /** Car in the opposing lane */
@@ -174,20 +187,21 @@ public class Demo extends AppCompatActivity implements PermissionsListener {
         map.addMarker(neighMarkers.get(getIndex(id)));
 
         /** Initialize the List containing all the positions for the new neighbor*/
-        neighPoints.add(new ArrayList<GpsData>());
+        neighPoints.add(new ArrayList<VehicularData>());
         neighPosGen.add(0);
     }
 
-    private void addNeighPos(GpsData gpsData){
-        neighPoints.get(getIndex(gpsData.getId())).add(gpsData);
+    private void addNeighPos(VehicularData vehicularData){
+        neighPoints.get(getIndex(vehicularData.getId())).add(vehicularData);
     }
 
-
-    private GpsData getNextPosition(){
+    private VehicularData getNextPosition(){
         if(posGen == usrPoints.size()-1){
             /** When the animation ends -> Restart */
             posGen = 0;
             int i = 0;
+            sampleDelayAux = 0;
+            isVisible = true;
             while(i < neighsIndex.size()){
                 neighPosGen.set(i, 0);
                 i++;
@@ -196,21 +210,22 @@ public class Demo extends AppCompatActivity implements PermissionsListener {
         return usrPoints.get(++posGen);
     }
 
-    private GpsData getNextNeighPosition(String id){
+    private VehicularData getNextNeighPosition(String id){
 
         if(neighPosGen.get(getIndex(id)) == neighPoints.get(getIndex(id)).size()-1) {
-            return neighPoints.get(getIndex(id)).get(neighPosGen.get(getIndex(id)));
+            Log.i(TAG,"entered if, id: "+id);
+            //return neighPoints.get(getIndex(id)).get(neighPosGen.get(getIndex(id)));
+            return new VehicularData("683","-1","-1","-1","-1");
         }
 
-        GpsData gpsData = neighPoints.get(getIndex(id)).get(neighPosGen.get(getIndex(id)));
+        VehicularData vehicularData = neighPoints.get(getIndex(id)).get(neighPosGen.get(getIndex(id)));
         neighPosGen.set(getIndex(id), neighPosGen.get(getIndex(id)) +1);
-        return gpsData;
+        return vehicularData;
     }
 
     private int getIndex(String id) {
         return neighsIndex.indexOf(id);
     }
-
 
     private void getSampleFromData(){
         BufferedReader reader = null;
@@ -224,10 +239,10 @@ public class Demo extends AppCompatActivity implements PermissionsListener {
                 separated = mLine.split(" ");
                 String id = separated[1];
                 if(id.equals(userId)) {             /** User Data */
-                    usrPoints.add(new GpsData(
+                    usrPoints.add(new VehicularData(
                             separated[1],
-                            separated[2],
                             separated[3],
+                            separated[2],
                             separated[4],
                             separated[5]));
                 }
@@ -235,23 +250,12 @@ public class Demo extends AppCompatActivity implements PermissionsListener {
                     if( getIndex(id) == -1) {
                         addNeighMarker(id);
                     }
-                    if(separated[1].equals("0001")){            /** Car in the same lane */
-                        addNeighPos(new GpsData(
-                                separated[1],
-                                separated[2],
-                                separated[3],
-                                separated[4],
-                                separated[5]));
-                    }
-                    else{                                       /** Opposite lane */
-                    addNeighPos(new GpsData(
+                    addNeighPos(new VehicularData(
                             separated[1],
-                            separated[2],
                             separated[3],
+                            separated[2],
                             separated[4],
-                            //separated[5]));
-                            "205"));
-                    }
+                            separated[5]));
                 }
             }
         } catch (IOException e) {
@@ -266,6 +270,8 @@ public class Demo extends AppCompatActivity implements PermissionsListener {
             }
         }
     }
+
+
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -302,7 +308,10 @@ public class Demo extends AppCompatActivity implements PermissionsListener {
         return Math.abs(neighCourse - usrOppositeCourse) < opposingLaneThreshold ;
     }
     private boolean isOnSameLane(Double userCourse, Double neighCourse){
-        return Math.abs(neighCourse - userCourse) < sameLaneThreshold ;
+        Double usrOppositeCourse = (userCourse + 180) % 360;
+        Double neighOppositeCourse = (neighCourse + 180) % 360;
+
+        return Math.abs(neighOppositeCourse - usrOppositeCourse) < sameLaneThreshold ;
     }
 
     @Override

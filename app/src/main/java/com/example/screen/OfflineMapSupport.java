@@ -29,7 +29,7 @@ import org.json.JSONObject;
 
 import java.util.ArrayList;
 
-public class OfflineMap extends AppCompatActivity {
+public class OfflineMapSupport extends AppCompatActivity {
 
     private static final String TAG = "MainActivity";
 
@@ -153,9 +153,9 @@ public class OfflineMap extends AppCompatActivity {
         // Set up download interaction. Display a dialog
         // when the user clicks download button and require
         // a user-provided region name
-        AlertDialog.Builder builder = new AlertDialog.Builder(OfflineMap.this);
+        AlertDialog.Builder builder = new AlertDialog.Builder(OfflineMapSupport.this);
 
-        final EditText regionNameEdit = new EditText(OfflineMap.this);
+        final EditText regionNameEdit = new EditText(OfflineMapSupport.this);
         regionNameEdit.setHint("Enter name");
 
         // Build the dialog box
@@ -170,7 +170,7 @@ public class OfflineMap extends AppCompatActivity {
                         // If the user-provided string is empty, display
                         // a toast message and do not begin download.
                         if (regionName.length() == 0) {
-                            Toast.makeText(OfflineMap.this, "Region name cannot be empty.", Toast.LENGTH_SHORT).show();
+                            Toast.makeText(OfflineMapSupport.this, "Region name cannot be empty.", Toast.LENGTH_SHORT).show();
                         } else {
                             // Begin download process
                             downloadRegion(regionName);
@@ -224,7 +224,7 @@ public class OfflineMap extends AppCompatActivity {
             @Override
             public void onCreate(OfflineRegion offlineRegion) {
                 Log.d(TAG, "Offline region created: " + regionName);
-                OfflineMap.this.offlineRegion = offlineRegion;
+                OfflineMapSupport.this.offlineRegion = offlineRegion;
                 launchDownload();
             }
 
@@ -291,7 +291,7 @@ public class OfflineMap extends AppCompatActivity {
                 // Check result. If no regions have been
                 // downloaded yet, notify user and return
                 if (offlineRegions == null || offlineRegions.length == 0) {
-                    Toast.makeText(OfflineMap.this, "You have no regions yet.", Toast.LENGTH_SHORT).show();
+                    Toast.makeText(OfflineMapSupport.this, "You have no regions yet.", Toast.LENGTH_SHORT).show();
                     return;
                 }
 
@@ -303,7 +303,7 @@ public class OfflineMap extends AppCompatActivity {
                 final CharSequence[] items = offlineRegionsNames.toArray(new CharSequence[offlineRegionsNames.size()]);
 
                 // Build a dialog containing the list of regions
-                AlertDialog dialog = new AlertDialog.Builder(OfflineMap.this)
+                AlertDialog dialog = new AlertDialog.Builder(OfflineMapSupport.this)
                         .setTitle("List")
                         .setSingleChoiceItems(items, 0, new DialogInterface.OnClickListener() {
                             @Override
@@ -316,7 +316,7 @@ public class OfflineMap extends AppCompatActivity {
                             @Override
                             public void onClick(DialogInterface dialog, int id) {
 
-                                Toast.makeText(OfflineMap.this, items[regionSelected], Toast.LENGTH_LONG).show();
+                                Toast.makeText(OfflineMapSupport.this, items[regionSelected], Toast.LENGTH_LONG).show();
 
                                 // Get the region bounds and zoom
                                 LatLngBounds bounds = ((OfflineTilePyramidRegionDefinition)
@@ -352,7 +352,7 @@ public class OfflineMap extends AppCompatActivity {
                                         // progressBar and display a toast
                                         progressBar.setVisibility(View.INVISIBLE);
                                         progressBar.setIndeterminate(false);
-                                        Toast.makeText(OfflineMap.this, "Region deleted", Toast.LENGTH_LONG).show();
+                                        Toast.makeText(OfflineMapSupport.this, "Region deleted", Toast.LENGTH_LONG).show();
                                     }
 
                                     @Override
@@ -432,6 +432,6 @@ public class OfflineMap extends AppCompatActivity {
         progressBar.setVisibility(View.GONE);
 
         // Show a toast
-        Toast.makeText(OfflineMap.this, message, Toast.LENGTH_LONG).show();
+        Toast.makeText(OfflineMapSupport.this, message, Toast.LENGTH_LONG).show();
     }
 }

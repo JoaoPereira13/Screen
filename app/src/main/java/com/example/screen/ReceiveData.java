@@ -97,7 +97,7 @@ public class ReceiveData extends AsyncTask<Void, String,Void> {
                         separated[3],
                         separated[4]);
 
-                SystemClock.sleep(1);
+                SystemClock.sleep(1);   /** ms */
             }
        } catch (UnknownHostException e) {
             e.printStackTrace();
@@ -115,14 +115,16 @@ public class ReceiveData extends AsyncTask<Void, String,Void> {
     @Override
     protected void onProgressUpdate(String... values) {
         super.onProgressUpdate(values);
-        /** IF vehicular data - format: [ID Lon Lat Speed Course] */
-        //if...
-        vehicularTable.updateVehicularTable(new VehicularData(values[0], values[1], values[2], values[3], values[4]));
-        //else if...
 
-        //trafficSignalTable.updateTrafficSignalTable(new TrafficSignalData(values[0], values[1], values[2], values[3], values[4]));
         /** IF traffic signal data - format: [ID Lon Lat Course Message] */
-
+        if(values[4].contains("TS_")) {
+            trafficSignalTable.updateTrafficSignalTable(new TrafficSignalData(values[0], values[1], values[2], values[3], values[4]));
+            //Log.i(TAG,"\nReceived TS Packet");
+        }
+        /** IF vehicular data - format: [ID Lon Lat Speed Course] */
+        else{
+            vehicularTable.updateVehicularTable(new VehicularData(values[0], values[1], values[2], values[3], values[4]));
+        }
     }
 
     private void sendRequestPacket() {

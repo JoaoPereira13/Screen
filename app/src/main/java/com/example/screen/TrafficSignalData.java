@@ -9,39 +9,58 @@ public class TrafficSignalData {
     private String lon;
     private String lat;
     private String course;
-    private String message;
+    private String type;
+    private int ttl;
 
     TrafficSignalData(){
         id = "-1";
         lat = "-1";
         lon = "-1";
         course = "-1";
-        message = "-1";
+        type = "-1";
+        ttl = 0;
     }
 
-    TrafficSignalData(String ID, String Lon, String Lat, String Course, String Message){
+    TrafficSignalData(String ID, String Lon, String Lat, String Course, String Type){
         id = ID;
         lon = Lon;
         lat = Lat;
         course = Course;
-        message = Message;
+        type = Type;
     }
 
-
-    public void setTrafficSignalData(String ID, String Lon, String Lat, String Course, String Message){
+    public void setTrafficSignalData(String ID, String Lon, String Lat, String Course, String Type){
         id = ID;
         lon = Lon;
         lat = Lat;
         course = Course;
-        message = Message;
+        type = Type;
     }
 
     public String getId(){
         return id;
     }
-    public String getMessage(){
-        return message;
+    public String getType(){
+        return type;
     }
+
+    public int getTTL(){
+        return ttl;
+    }
+    public void setTTL(int t){
+        ttl = t;
+    }
+
+    public void increaseTTl(int t)
+    {
+        ttl = ttl + t;
+    }
+    public void decreaseTTL(int t)
+    {
+        if(ttl !=0)
+        ttl = ttl - t;
+    }
+
 
     public String getLat(){
         return lat;
@@ -56,7 +75,6 @@ public class TrafficSignalData {
     public Double getLonDouble(){
         return Double.parseDouble(lon);
     }
-
 
     public String getCourse(){
         return course;

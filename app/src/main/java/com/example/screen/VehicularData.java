@@ -6,7 +6,6 @@ public class VehicularData {
 
     private String id;
     private String lon;
-
     private String lat;
     private String speed;
     private String course;

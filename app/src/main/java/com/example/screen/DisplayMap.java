@@ -1,6 +1,5 @@
 package com.example.screen;
 
-import android.animation.TypeEvaluator;
 import android.content.Context;
 import android.net.wifi.WifiInfo;
 import android.net.wifi.WifiManager;
@@ -18,7 +17,6 @@ import com.mapbox.mapboxsdk.annotations.Marker;
 import com.mapbox.mapboxsdk.annotations.MarkerViewOptions;
 import com.mapbox.mapboxsdk.camera.CameraPosition;
 import com.mapbox.mapboxsdk.camera.CameraUpdateFactory;
-import com.mapbox.mapboxsdk.geometry.LatLng;
 import com.mapbox.mapboxsdk.maps.MapView;
 import com.mapbox.mapboxsdk.maps.MapboxMap;
 import com.mapbox.mapboxsdk.maps.OnMapReadyCallback;
@@ -31,22 +29,27 @@ import java.util.List;
 
 public class DisplayMap extends AppCompatActivity implements PermissionsListener {
 
-    private static final String TAG = "debug";
+    private static final String TAG = "debugAPP";
     private static final int refreshPeriodMs = 1000;
     private static final int initialDelayMs = 2000;
     private static final int zoomLevel = 17;
     private static final int receivePort = 13892;
     private static final int destinyPort = 13891;
-    private static final int opposingLaneThreshold = 5;
-    private static final int sameLaneThreshold = 5;
+    private static final int opposingLaneThreshold = 60;
+    private static final int sameLaneThreshold = 20;
     private static final int cameraAnimationTimeMs = 600;
 
     private static final boolean enableTracking = true;
 
-    private static final int MARKER_COLOR_PURPLE = 0;
-    private static final int MARKER_COLOR_RED = 1;
-    private static final int MARKER_COLOR_LIGHT_BLUE = 2;
-    private static final int MARKER_COLOR_GREEN = 3;
+    private static final int MARKER_COLOR_PURPLE        = 0;
+    private static final int MARKER_COLOR_RED           = 1;
+    private static final int MARKER_COLOR_LIGHT_BLUE    = 2;
+    private static final int MARKER_COLOR_GREEN         = 3;
+    private static final String TSIG_STOP                  = "TS_STOP";
+    private static final String TSIG_TRAFFIC_LIGHT_GREEN   = "TS_TL_GREEN";
+    private static final String TSIG_TRAFFIC_LIGHT_YELLOW  = "TS_TL_YELLOW";
+    private static final String TSIG_TRAFFIC_LIGHT_RED     = "TS_TL_RED";
+    private static final String TSIG_WORK_IN_PROGRESS      = "TS_WIP";
 
     private PermissionsManager permissionsManager;
     private MapView mapView;
@@ -60,6 +63,7 @@ public class DisplayMap extends AppCompatActivity implements PermissionsListener
 
     private Marker userMarker = null;
     private Hashtable<String, Marker> neighbourMarkers;
+    private Hashtable<String, Marker> trafficSignalMarkers;
 
     private static Handler handler = new Handler();
     private Runnable runnable = new Runnable() {
@@ -70,8 +74,12 @@ public class DisplayMap extends AppCompatActivity implements PermissionsListener
                 public void run() {
 
                     /** Update the user and neighbours markers positions */
-                    if(vehicularTable.isUserDataAvailable())
+                    if(vehicularTable.isUserDataAvailable()) {
                         refreshMarkers(vehicularTable.getUserData(), vehicularTable.getNeighboursData());
+
+                        trafficSignalTable.updateTime();
+                        refreshTrafficSignalMarkers(trafficSignalTable.getTrafficSignalsData());
+                    }
                 }
             });
             handler.postDelayed(this, refreshPeriodMs);
@@ -83,14 +91,15 @@ public class DisplayMap extends AppCompatActivity implements PermissionsListener
 
         trafficSignalTable = new TrafficSignalTable();
         vehicularTable = new VehicularTable();
-        vehicularTable.setUserId("0003");
+        vehicularTable.setUserId("000");
 
         /** Start the thread responsible for receiving the GPS data from the OBU */
         receiveData = new ReceiveData(receivePort, destinyPort, getUsrIP(), vehicularTable, trafficSignalTable);
         receiveData.execute();
 
-        /** Initialize the lists containing the neighbour markers */
+        /** Initialize the lists containing the neighbour and traffic signal markers */
         neighbourMarkers = new Hashtable<String, Marker>();
+        trafficSignalMarkers = new Hashtable<String, Marker>();
 
     }
 
@@ -186,6 +195,98 @@ public class DisplayMap extends AppCompatActivity implements PermissionsListener
         neighbourMarkers.get(id).setPosition(neighbourData.getLatLng());
     }
 
+    private void refreshTrafficSignalMarkers(List<TrafficSignalData> trafficSignalDataList){
+        int i = 0;
+        while( i < trafficSignalDataList.size()){
+            refreshTrafficSignalMarker(trafficSignalDataList.get(i));
+            i++;
+        }
+    }
+
+    private void refreshTrafficSignalMarker(TrafficSignalData trafficSignalData){
+
+        if(!trafficSignalMarkers.containsKey(trafficSignalData.getId())) {               /** New marker */
+
+            if (trafficSignalData.getTTL() != 0) {
+                addTrafficSignalMarker(trafficSignalData);
+            }
+        }
+        else {
+            if(trafficSignalData.getTTL() == 0){
+                removeTrafficSignalMarker(trafficSignalData.getId());
+            }
+            else {
+                String type = trafficSignalData.getType();
+                if (type.equals(TSIG_STOP)) {
+                    updateTrafficSignalMarker(trafficSignalData, TSIG_STOP);
+                } else if (type.equals(TSIG_TRAFFIC_LIGHT_GREEN))
+                    updateTrafficSignalMarker(trafficSignalData, TSIG_TRAFFIC_LIGHT_GREEN);
+
+                else if (type.equals(TSIG_TRAFFIC_LIGHT_YELLOW))
+                    updateTrafficSignalMarker(trafficSignalData, TSIG_TRAFFIC_LIGHT_YELLOW);
+
+                else if (type.equals(TSIG_TRAFFIC_LIGHT_RED))
+                    updateTrafficSignalMarker(trafficSignalData, TSIG_TRAFFIC_LIGHT_RED);
+
+                else if (type.equals(TSIG_WORK_IN_PROGRESS))
+                    updateTrafficSignalMarker(trafficSignalData, TSIG_WORK_IN_PROGRESS);
+            }
+        }
+    }
+
+    private void removeTrafficSignalMarker(String id){
+        /** update the marker */
+        map.removeMarker(trafficSignalMarkers.get(id));
+        trafficSignalMarkers.remove(id);
+    }
+
+    private void addTrafficSignalMarker(TrafficSignalData trafficSignalData){
+
+        String id = trafficSignalData.getId();
+        String type = trafficSignalData.getType();
+
+        IconFactory iconFactory = IconFactory.getInstance(DisplayMap.this);
+        Icon icon = getTrafficSignalIcon(type);
+
+        trafficSignalMarkers.put(trafficSignalData.getId(), map.addMarker(new MarkerViewOptions()
+                .position(trafficSignalData.getLatLng())
+                .icon(icon)));
+        Log.i(TAG,"\nAdded new traffic signal with type: "+type);
+    }
+
+    private void updateTrafficSignalMarker(TrafficSignalData trafficSignalData, String type){
+        //
+        String id = trafficSignalData.getId();
+        IconFactory iconFactory = IconFactory.getInstance(DisplayMap.this);
+        Icon icon = getTrafficSignalIcon(type);
+
+        /** update the marker */
+        trafficSignalMarkers.get(id).setIcon(icon);
+        trafficSignalMarkers.get(id).setPosition(trafficSignalData.getLatLng());
+    }
+
+    private Icon getTrafficSignalIcon(String type){
+        //TODO GET THE ICONS FOR TRAFFIC SIGNALS
+        IconFactory iconFactory = IconFactory.getInstance(DisplayMap.this);
+
+        if(type.equals(TSIG_STOP))
+            return iconFactory.fromResource(R.mipmap.red_round_marker);
+
+        else if(type.equals(TSIG_TRAFFIC_LIGHT_GREEN))
+            return iconFactory.fromResource(R.mipmap.red_round_marker);
+
+        else if(type.equals(TSIG_TRAFFIC_LIGHT_YELLOW))
+            return iconFactory.fromResource(R.mipmap.red_round_marker);
+
+        else if(type.equals(TSIG_TRAFFIC_LIGHT_RED))
+            return iconFactory.fromResource(R.mipmap.red_round_marker);
+
+        else if(type.equals(TSIG_WORK_IN_PROGRESS))
+            return iconFactory.fromResource(R.mipmap.red_round_marker);
+        else
+            return null;
+    }
+
     private String getUsrIP(){
         /** Extract the IP address of the OBU from the SSID */
         wifi = (WifiManager) getApplicationContext().getSystemService(Context.WIFI_SERVICE);
@@ -213,21 +314,6 @@ public class DisplayMap extends AppCompatActivity implements PermissionsListener
     }
     private boolean isOnSameLane(Double userCourse, Double neighCourse){
         return Math.abs(neighCourse - userCourse) < sameLaneThreshold ;
-    }
-
-    private static class LatLngEvaluator implements TypeEvaluator<LatLng> {
-        // Method is used to interpolate the marker animation.
-
-        private LatLng latLng = new LatLng();
-
-        @Override
-        public LatLng evaluate(float fraction, LatLng startValue, LatLng endValue) {
-            latLng.setLatitude(startValue.getLatitude()
-                    + ((endValue.getLatitude() - startValue.getLatitude()) * fraction));
-            latLng.setLongitude(startValue.getLongitude()
-                    + ((endValue.getLongitude() - startValue.getLongitude()) * fraction));
-            return latLng;
-        }
     }
 
     @Override

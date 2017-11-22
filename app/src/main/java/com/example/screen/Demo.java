@@ -31,14 +31,15 @@ import java.util.List;
 public class Demo extends AppCompatActivity implements PermissionsListener {
 
     private static final String TAG = "debug";
-    private static final int refreshPeriodMs = 1000;
+    private static final int refreshPeriodMs = 4000;
     private static final int initialDelayMs = 2000;
-    private static final int zoomLevel = 17;
+    private static final int zoomLevel = 18;
     private static final int opposingLaneThreshold = 60;
     private static final int sameLaneThreshold = 20;
     private static final int sampleDelay = 7;
-    private static final String userId = "625";
-    private static final String fileName = "allObu.txt";
+    private static final String userId = "685";
+    private static final String neighDelay = "683";
+    private static final String fileName = "T5_4.txt";
 
     private static int posGen = 0;
     private static int sampleDelayAux = 0;
@@ -75,7 +76,7 @@ public class Demo extends AppCompatActivity implements PermissionsListener {
                     /** Update the neighbors position */
                     int i = 0;
                     while(i < neighsIndex.size()) {
-                        if(neighsIndex.get(i).equals("683")){
+                        if(neighsIndex.get(i).equals(neighDelay)){
                             if(sampleDelayAux >= sampleDelay) {
                                 neighData = getNextNeighPosition(neighsIndex.get(i));
                                 refreshNeighPosition(neighsIndex.get(i));
@@ -83,7 +84,7 @@ public class Demo extends AppCompatActivity implements PermissionsListener {
                         }
                         else{
                                 neighData = getNextNeighPosition(neighsIndex.get(i));
-                                refreshNeighPosition(neighsIndex.get(i));
+                            refreshNeighPosition(neighsIndex.get(i));
                         }
                         i++;
                         sampleDelayAux++;
@@ -143,9 +144,21 @@ public class Demo extends AppCompatActivity implements PermissionsListener {
 
     private void refreshNeighPosition(String id) {
         /** Car in the same lane */
+
         if(isOnOpposingLane(userData.getCourseDouble(), neighData.getCourseDouble())){
             IconFactory iconFactory = IconFactory.getInstance(Demo.this);
             Icon icon = iconFactory.fromResource(R.mipmap.red_round_marker);
+
+            //TODO ONLY FOR THE VIDEO - REMOVE AFTER
+            if(neighData.getId().equals("657")){
+                iconFactory = IconFactory.getInstance(Demo.this);
+                icon = iconFactory.fromResource(R.mipmap.green_round_marker);
+            }
+            else if(neighData.getId().equals("681")){
+                iconFactory = IconFactory.getInstance(Demo.this);
+                icon = iconFactory.fromResource(R.mipmap.red_round_marker);
+            }
+            //
 
             map.updateMarker(neighMarkers.get(getIndex(id))
                     .position(neighData.getLatLng())
@@ -158,6 +171,17 @@ public class Demo extends AppCompatActivity implements PermissionsListener {
             IconFactory iconFactory = IconFactory.getInstance(Demo.this);
             Icon icon = iconFactory.fromResource(R.mipmap.light_blue_round_marker);
 
+            //TODO ONLY FOR THE VIDEO - REMOVE AFTER
+            if(neighData.getId().equals("657")){
+                iconFactory = IconFactory.getInstance(Demo.this);
+                icon = iconFactory.fromResource(R.mipmap.green_round_marker);
+            }
+            else if(neighData.getId().equals("681")){
+                iconFactory = IconFactory.getInstance(Demo.this);
+                icon = iconFactory.fromResource(R.mipmap.red_round_marker);
+            }
+            //
+
             map.updateMarker(neighMarkers.get(getIndex(id))
                     .position(neighData.getLatLng())
                     .icon(icon)
@@ -166,6 +190,17 @@ public class Demo extends AppCompatActivity implements PermissionsListener {
         else{
             IconFactory iconFactory = IconFactory.getInstance(Demo.this);
             Icon icon = iconFactory.fromResource(R.mipmap.green_round_marker);
+            //TODO ONLY FOR THE VIDEO - REMOVE AFTER
+            if(neighData.getId().equals("657")){
+                iconFactory = IconFactory.getInstance(Demo.this);
+                icon = iconFactory.fromResource(R.mipmap.green_round_marker);
+            }
+            else if(neighData.getId().equals("681")){
+                iconFactory = IconFactory.getInstance(Demo.this);
+                icon = iconFactory.fromResource(R.mipmap.red_round_marker);
+            }
+            //
+
 
             map.updateMarker(neighMarkers.get(getIndex(id))
                     .position(neighData.getLatLng())
@@ -215,7 +250,7 @@ public class Demo extends AppCompatActivity implements PermissionsListener {
         if(neighPosGen.get(getIndex(id)) == neighPoints.get(getIndex(id)).size()-1) {
             Log.i(TAG,"entered if, id: "+id);
             //return neighPoints.get(getIndex(id)).get(neighPosGen.get(getIndex(id)));
-            return new VehicularData("683","-1","-1","-1","-1");
+            return new VehicularData(neighDelay,"-1","-1","-1","-1");
         }
 
         VehicularData vehicularData = neighPoints.get(getIndex(id)).get(neighPosGen.get(getIndex(id)));

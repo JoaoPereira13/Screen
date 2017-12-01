@@ -9,6 +9,6 @@
     <string name="access_token">pk.eyJ1Ijoiam9hb2ZwZXJlaXJhIiwiYSI6ImNqMGloYnBkaDAwMDUzMnMyZ2s1NmR6cXQifQ.Y9VqX5vImcD2fSSjjAj3WQ</string>
     <string name="manage_offline_maps">Manage offline maps</string>
     <string name="demo">Demo</string>
-    <string name="tracking_mode">Tracking Awareness</string>
+    <string name="tracking_mode">Traffic Awareness</string>
 
 </resources>

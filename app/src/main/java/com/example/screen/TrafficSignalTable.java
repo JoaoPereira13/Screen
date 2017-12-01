@@ -114,7 +114,6 @@ public class TrafficSignalTable {
 
             trafficSignalDataHashtable.put(trafficSignalData.getId(), trafficSignalData);
             i++;
-            Log.i(TAG,"\nttl: "+trafficSignalData.getTTL());
         }
     }
 }

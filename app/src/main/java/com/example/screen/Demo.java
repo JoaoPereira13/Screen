@@ -1,6 +1,9 @@
 package com.example.screen;
 
-
+import android.content.Context;
+import android.location.Location;
+import android.net.wifi.WifiInfo;
+import android.net.wifi.WifiManager;
 import android.os.Bundle;
 import android.os.Handler;
 import android.support.annotation.NonNull;
@@ -11,6 +14,7 @@ import android.widget.Toast;
 import com.mapbox.mapboxsdk.Mapbox;
 import com.mapbox.mapboxsdk.annotations.Icon;
 import com.mapbox.mapboxsdk.annotations.IconFactory;
+import com.mapbox.mapboxsdk.annotations.Marker;
 import com.mapbox.mapboxsdk.annotations.MarkerViewOptions;
 import com.mapbox.mapboxsdk.camera.CameraPosition;
 import com.mapbox.mapboxsdk.camera.CameraUpdateFactory;
@@ -21,43 +25,48 @@ import com.mapbox.mapboxsdk.maps.OnMapReadyCallback;
 import com.mapbox.services.android.telemetry.permissions.PermissionsListener;
 import com.mapbox.services.android.telemetry.permissions.PermissionsManager;
 
-import java.io.BufferedReader;
-
-import java.io.IOException;
-import java.io.InputStreamReader;
-import java.util.ArrayList;
+import java.util.Hashtable;
 import java.util.List;
+
 
 public class Demo extends AppCompatActivity implements PermissionsListener {
 
-    private static final String TAG = "debug";
-    private static final int refreshPeriodMs = 4000;
+    private static final String TAG = "debugAPP";
+    private static final int refreshPeriodMs = 1000;
     private static final int initialDelayMs = 2000;
-    private static final int zoomLevel = 18;
-    private static final int opposingLaneThreshold = 60;
-    private static final int sameLaneThreshold = 20;
-    private static final int sampleDelay = 7;
-    private static final String userId = "685";
-    private static final String neighDelay = "683";
-    private static final String fileName = "T5_4.txt";
+    private static final int zoomLevel = 17;
+    private static final int receivePort = 13892;
+    private static final int destinyPort = 13891;
+    private static final int opposingLaneThreshold = 45;
+    private static final int sameLaneThreshold = 45;
+    private static final int inFrontThreshold = 45;
+    private static final int cameraAnimationTimeMs = 600;
 
-    private static int posGen = 0;
-    private static int sampleDelayAux = 0;
+    private static final boolean enableTracking = true;
+
+    private static final int MARKER_COLOR_PURPLE        = 0;
+    private static final int MARKER_COLOR_RED           = 1;
+    private static final int MARKER_COLOR_LIGHT_BLUE    = 2;
+    private static final int MARKER_COLOR_GREEN         = 3;
+    private static final String TSIG_STOP                  = "TS_STOP";
+    private static final String TSIG_TRAFFIC_LIGHT_GREEN   = "TS_TL_GREEN";
+    private static final String TSIG_TRAFFIC_LIGHT_YELLOW  = "TS_TL_YELLOW";
+    private static final String TSIG_TRAFFIC_LIGHT_RED     = "TS_TL_RED";
+    private static final String TSIG_WORK_IN_PROGRESS      = "TS_WIP";
 
     private PermissionsManager permissionsManager;
     private MapView mapView;
     private MapboxMap map;
 
-    private MarkerViewOptions userMarker = null;
-    private List<VehicularData> usrPoints;
-    private List<List<VehicularData>> neighPoints;
-    private List<MarkerViewOptions> neighMarkers;
-    private List<String> neighsIndex = null;
-    private List<Integer> neighPosGen;
-    private VehicularData userData;
-    private VehicularData neighData;
-    private boolean isVisible = true;
+    private WifiManager wifi;
+    private ReceiveData receiveData;
 
+    private VehicularTable vehicularTable = null;
+    private TrafficSignalTable trafficSignalTable = null;
+
+    private Marker userMarker = null;
+    private Hashtable<String, Marker> neighbourMarkers;
+    private Hashtable<String, Marker> trafficSignalMarkers;
 
     private static Handler handler = new Handler();
     private Runnable runnable = new Runnable() {
@@ -67,27 +76,15 @@ public class Demo extends AppCompatActivity implements PermissionsListener {
                 /** Loop function */
                 public void run() {
 
-                    /** Get the next sample */
-                    userData = getNextPosition();
+                    DEBUG_addUserData();
 
-                    /** Update the user position */
-                    refreshUserPosition();
+                    /** Update the user and neighbours markers positions */
+                    if(vehicularTable.isUserDataAvailable()) {
+                        DEBUG_addData();
+                        refreshMarkers(vehicularTable.getUserData(), vehicularTable.getNeighboursData());
 
-                    /** Update the neighbors position */
-                    int i = 0;
-                    while(i < neighsIndex.size()) {
-                        if(neighsIndex.get(i).equals(neighDelay)){
-                            if(sampleDelayAux >= sampleDelay) {
-                                neighData = getNextNeighPosition(neighsIndex.get(i));
-                                refreshNeighPosition(neighsIndex.get(i));
-                            }
-                        }
-                        else{
-                                neighData = getNextNeighPosition(neighsIndex.get(i));
-                            refreshNeighPosition(neighsIndex.get(i));
-                        }
-                        i++;
-                        sampleDelayAux++;
+                        trafficSignalTable.updateTime();
+                        refreshTrafficSignalMarkers(trafficSignalTable.getTrafficSignalsData());
                     }
                 }
             });
@@ -95,218 +92,289 @@ public class Demo extends AppCompatActivity implements PermissionsListener {
         }
     };
 
-    private void init() {
-        Log.i(TAG, "\nPermissions granted. Starting the app...");
-
-        /** Initialize the Lists */
-        usrPoints = new ArrayList<>();
-        neighPoints = new ArrayList<List<VehicularData>>();
-        neighMarkers = new ArrayList<>();
-        neighsIndex = new ArrayList<>();
-        neighPosGen = new ArrayList<>();
-
-
-        /** Get the Sample coordinates */
-        getSampleFromData();
+    private void DEBUG_addUserData(){
+        vehicularTable.updateVehicularTable(new VehicularData("000", "-8.692938", "40.630822", "81.600000", "253.2"));
     }
 
-    private void refreshUserPosition(){
+    private void DEBUG_addData(){
+        /** User Data */
+        vehicularTable.updateVehicularTable(new VehicularData("000", "-8.692938", "40.630822", "81.600000", "253.2"));
 
-        if(userMarker == null){
-            /** Get the user icon */
-            IconFactory iconFactory = IconFactory.getInstance(Demo.this);
-            Icon icon = iconFactory.fromResource(R.mipmap.purple_round_marker);
+        /** Neighboring Vehicles Data */
+        vehicularTable.updateVehicularTable(new VehicularData("001", "-8.692694", "40.630883", "80.833333", "253.3"));
+        vehicularTable.updateVehicularTable(new VehicularData("002", "-8.693373", "40.630693", "80.111111", "255.5"));
 
-            /** Add the user marker in the starting position */
-            userMarker = new MarkerViewOptions()
-                    .position(userData.getLatLng())
-                    .icon(icon);
+        vehicularTable.updateVehicularTable(new VehicularData("003", "-8.692094", "40.630883", "80.833333", "73.3"));
 
-            /** Move the camera to the starting position */
-            map.moveCamera(CameraUpdateFactory.newCameraPosition(new CameraPosition.Builder()
+        vehicularTable.updateVehicularTable(new VehicularData("004", "-8.692973", "40.630693", "80.111111", "75.5"));
+
+        /** Traffic Signals Data */
+        // trafficSignalTable.updateTrafficSignalTable(new TrafficSignalData("001", "-8.693373", "40.630693", "255.5", "TS_STOP"));
+    }
+
+    private void init(){
+        Log.i(TAG,"\nPermissions granted. Starting the app...");
+
+        trafficSignalTable = new TrafficSignalTable();
+        vehicularTable = new VehicularTable();
+        vehicularTable.setUserId("000");
+
+        /** Start the thread responsible for receiving the GPS data from the OBU */
+        //receiveData = new ReceiveData(receivePort, destinyPort, getUsrIP(), vehicularTable, trafficSignalTable);  /** TO DEBUG COMMENT THIS */
+        //receiveData = new ReceiveData(receivePort, destinyPort, "10.6.85.1", vehicularTable, trafficSignalTable);  /** TO DEBUG UNCOMMENT THIS */
+
+        //receiveData.execute();
+
+        /** Initialize the lists containing the neighbour and traffic signal markers */
+        neighbourMarkers = new Hashtable<String, Marker>();
+        trafficSignalMarkers = new Hashtable<String, Marker>();
+
+    }
+
+    private void refreshMarkers(VehicularData userData, List<VehicularData> neighbourDataList){
+        refreshUserMarker(userData);
+        refreshNeighbourMarkers(userData, neighbourDataList);           /** User Data is used to determine the neighbor lane */
+    }
+
+    private void refreshUserMarker(VehicularData userData){
+        if(enableTracking) {
+            if(userMarker == null){                                     /** First user position */
+                /** Get the user icon */
+                IconFactory iconFactory = IconFactory.getInstance(Demo.this);
+                Icon icon = iconFactory.fromResource(R.mipmap.purple_round_marker);
+
+                /** Move the camera to the starting position */
+                map.moveCamera(CameraUpdateFactory.newCameraPosition(new CameraPosition.Builder()
+                        .target(userData.getLatLng())
+                        .zoom(zoomLevel)
+                        .bearing(userData.getCourseDouble())
+                        .build()));
+                /** Add the user marker in the starting position */
+                userMarker = map.addMarker( new MarkerViewOptions()
+                        .position(userData.getLatLng())
+                        .icon(icon));
+                return;
+            }
+
+            /** Move the camera along the user position */
+            map.animateCamera(CameraUpdateFactory.newCameraPosition(new CameraPosition.Builder()
                     .target(userData.getLatLng())
-                    .zoom(zoomLevel)
                     .bearing(userData.getCourseDouble())
-                    .build()));
-            map.addMarker(userMarker);
-            return;
-        }
+                    .build()),cameraAnimationTimeMs);
 
-        /** Move the camera along the user position */
-        map.moveCamera(CameraUpdateFactory.newCameraPosition(new CameraPosition.Builder()
-                .target(userData.getLatLng())
-                .bearing(userData.getCourseDouble())
-                .build()));
-        /** Move the user marker */
-        map.updateMarker(userMarker
-                .position(userData.getLatLng()).getMarker());
-    }
+            /** Update the user marker position */
+            userMarker.setPosition(userData.getLatLng());
 
-    private void refreshNeighPosition(String id) {
-        /** Car in the same lane */
-
-        if(isOnOpposingLane(userData.getCourseDouble(), neighData.getCourseDouble())){
-            IconFactory iconFactory = IconFactory.getInstance(Demo.this);
-            Icon icon = iconFactory.fromResource(R.mipmap.red_round_marker);
-
-            //TODO ONLY FOR THE VIDEO - REMOVE AFTER
-            if(neighData.getId().equals("657")){
-                iconFactory = IconFactory.getInstance(Demo.this);
-                icon = iconFactory.fromResource(R.mipmap.green_round_marker);
-            }
-            else if(neighData.getId().equals("681")){
-                iconFactory = IconFactory.getInstance(Demo.this);
-                icon = iconFactory.fromResource(R.mipmap.red_round_marker);
-            }
-            //
-
-            map.updateMarker(neighMarkers.get(getIndex(id))
-                    .position(neighData.getLatLng())
-                    .icon(icon)
-                    .visible(isVisible)
-                    .getMarker());
-        }
-        /** Car in the opposing lane */
-        else if(isOnSameLane(userData.getCourseDouble(), neighData.getCourseDouble())){
-            IconFactory iconFactory = IconFactory.getInstance(Demo.this);
-            Icon icon = iconFactory.fromResource(R.mipmap.light_blue_round_marker);
-
-            //TODO ONLY FOR THE VIDEO - REMOVE AFTER
-            if(neighData.getId().equals("657")){
-                iconFactory = IconFactory.getInstance(Demo.this);
-                icon = iconFactory.fromResource(R.mipmap.green_round_marker);
-            }
-            else if(neighData.getId().equals("681")){
-                iconFactory = IconFactory.getInstance(Demo.this);
-                icon = iconFactory.fromResource(R.mipmap.red_round_marker);
-            }
-            //
-
-            map.updateMarker(neighMarkers.get(getIndex(id))
-                    .position(neighData.getLatLng())
-                    .icon(icon)
-                    .getMarker());
-        }
-        else{
-            IconFactory iconFactory = IconFactory.getInstance(Demo.this);
-            Icon icon = iconFactory.fromResource(R.mipmap.green_round_marker);
-            //TODO ONLY FOR THE VIDEO - REMOVE AFTER
-            if(neighData.getId().equals("657")){
-                iconFactory = IconFactory.getInstance(Demo.this);
-                icon = iconFactory.fromResource(R.mipmap.green_round_marker);
-            }
-            else if(neighData.getId().equals("681")){
-                iconFactory = IconFactory.getInstance(Demo.this);
-                icon = iconFactory.fromResource(R.mipmap.red_round_marker);
-            }
-            //
-
-
-            map.updateMarker(neighMarkers.get(getIndex(id))
-                    .position(neighData.getLatLng())
-                    .icon(icon)
-                    .getMarker());
         }
     }
 
-    private void addNeighMarker(String id){
+    private void refreshNeighbourMarkers(VehicularData userData, List<VehicularData> neighbourDataList){
+        int i = 0;
+        while( i < neighbourDataList.size()){
+            refreshNeighborMarker(userData, neighbourDataList.get(i));
+            i++;
+        }
+    }
+
+    private void refreshNeighborMarker(VehicularData userData, VehicularData neighbourData) {
+        if(!neighbourMarkers.containsKey(neighbourData.getId())){           /** New marker */
+            addNeighbourMarker(userData, neighbourData);
+        }
+        else if(vehicularTable.isUserDataAvailable()){
+            moveNeighMarker(neighbourData, getNeighMarkerColor(userData, neighbourData));
+        }
+    }
+
+    private int getNeighMarkerColor(VehicularData userData, VehicularData neighbourData){
+
+        if(isInFront(userData.getLatLng(),neighbourData.getLatLng(), userData.getCourseDouble())) {
+            if(isOnOpposingLane(userData.getCourseDouble(), neighbourData.getCourseDouble())) {
+                return MARKER_COLOR_RED;
+            }
+            else if(isOnSameLane(userData.getCourseDouble(), neighbourData.getCourseDouble())) {
+                    return MARKER_COLOR_LIGHT_BLUE;
+            }
+        }
+            return MARKER_COLOR_GREEN;
+    }
+    private boolean isInFront(LatLng X, LatLng Y, double course){
+        double longitude1 = X.getLongitude();
+        double longitude2 = Y.getLongitude();
+        double latitude1 = Math.toRadians(X.getLatitude());
+        double latitude2 = Math.toRadians(X.getLatitude());
+        double longDiff= Math.toRadians(longitude2-longitude1);
+        double y = Math.sin(longDiff)*Math.cos(latitude2);
+        double x =Math.cos(latitude1)*Math.sin(latitude2)-Math.sin(latitude1)*Math.cos(latitude2)*Math.cos(longDiff);
+
+        double bearing = (Math.toDegrees(Math.atan2(y, x))+360)%360;
+
+        //Log.i(TAG,"\nBearing = "+bearing+" User Course: "+course+" |bearing - userCourse| = "+Math.abs(bearing - course));
+        double dif = Math.abs(bearing - course);
+
+        return dif < inFrontThreshold || dif > (360 - inFrontThreshold);
+    }
+
+    private boolean isOnOpposingLane(Double userCourse, Double neighCourse){
+        Double usrOppositeCourse = (userCourse + 180) % 360;
+        Double dif = Math.abs(neighCourse - usrOppositeCourse);
+        return dif < opposingLaneThreshold || dif > (360 - opposingLaneThreshold);
+    }
+    private boolean isOnSameLane(Double userCourse, Double neighCourse){
+        double dif = Math.abs(neighCourse - userCourse);
+        return dif < sameLaneThreshold || dif > (360 - sameLaneThreshold);
+    }
+
+    private void addNeighbourMarker(VehicularData userData, VehicularData neighbourData){
         /** Get the neighbor icon */
+        int markerColor = getNeighMarkerColor(userData, neighbourData);
         IconFactory iconFactory = IconFactory.getInstance(Demo.this);
-        Icon icon = iconFactory.fromResource(R.mipmap.green_round_marker);
+        Icon icon = null;
 
-        /** Create the marker */
-        neighMarkers.add(new MarkerViewOptions().position(new LatLng(-1,-1)).icon(icon));
-        neighsIndex.add(id);
+        if(markerColor == MARKER_COLOR_RED)
+            icon = iconFactory.fromResource(R.mipmap.red_round_marker);
 
-        /** Add the new marker to the map */
-        map.addMarker(neighMarkers.get(getIndex(id)));
+        if(markerColor == MARKER_COLOR_LIGHT_BLUE)
+            icon = iconFactory.fromResource(R.mipmap.light_blue_round_marker);
 
-        /** Initialize the List containing all the positions for the new neighbor*/
-        neighPoints.add(new ArrayList<VehicularData>());
-        neighPosGen.add(0);
+        if(markerColor == MARKER_COLOR_GREEN)
+            icon = iconFactory.fromResource(R.mipmap.green_round_marker);
+
+        neighbourMarkers.put(neighbourData.getId(), map.addMarker(new MarkerViewOptions()
+                .position(neighbourData.getLatLng())
+                .icon(icon)));
     }
 
-    private void addNeighPos(VehicularData vehicularData){
-        neighPoints.get(getIndex(vehicularData.getId())).add(vehicularData);
+    private void moveNeighMarker(VehicularData neighbourData, int markerColor){
+        String id = neighbourData.getId();
+        IconFactory iconFactory = IconFactory.getInstance(Demo.this);
+        Icon icon = null;
+
+        if(markerColor == MARKER_COLOR_RED)
+            icon = iconFactory.fromResource(R.mipmap.red_round_marker);
+
+        if(markerColor == MARKER_COLOR_LIGHT_BLUE)
+            icon = iconFactory.fromResource(R.mipmap.light_blue_round_marker);
+
+        if(markerColor == MARKER_COLOR_GREEN)
+            icon = iconFactory.fromResource(R.mipmap.green_round_marker);
+
+        /** update the marker */
+        neighbourMarkers.get(id).setIcon(icon);
+        neighbourMarkers.get(id).setPosition(neighbourData.getLatLng());
     }
 
-    private VehicularData getNextPosition(){
-        if(posGen == usrPoints.size()-1){
-            /** When the animation ends -> Restart */
-            posGen = 0;
-            int i = 0;
-            sampleDelayAux = 0;
-            isVisible = true;
-            while(i < neighsIndex.size()){
-                neighPosGen.set(i, 0);
-                i++;
+    private void refreshTrafficSignalMarkers(List<TrafficSignalData> trafficSignalDataList){
+        int i = 0;
+        while( i < trafficSignalDataList.size()){
+            refreshTrafficSignalMarker(trafficSignalDataList.get(i));
+            i++;
+        }
+    }
+
+    private void refreshTrafficSignalMarker(TrafficSignalData trafficSignalData){
+
+        if(!trafficSignalMarkers.containsKey(trafficSignalData.getId())) {               /** New marker */
+
+            if (trafficSignalData.getTTL() != 0) {
+                addTrafficSignalMarker(trafficSignalData);
             }
         }
-        return usrPoints.get(++posGen);
-    }
+        else {
+            if(trafficSignalData.getTTL() == 0){
+                removeTrafficSignalMarker(trafficSignalData.getId());
+            }
+            else {
+                String type = trafficSignalData.getType();
+                if (type.equals(TSIG_STOP)) {
+                    updateTrafficSignalMarker(trafficSignalData, TSIG_STOP);
+                } else if (type.equals(TSIG_TRAFFIC_LIGHT_GREEN))
+                    updateTrafficSignalMarker(trafficSignalData, TSIG_TRAFFIC_LIGHT_GREEN);
 
-    private VehicularData getNextNeighPosition(String id){
+                else if (type.equals(TSIG_TRAFFIC_LIGHT_YELLOW))
+                    updateTrafficSignalMarker(trafficSignalData, TSIG_TRAFFIC_LIGHT_YELLOW);
 
-        if(neighPosGen.get(getIndex(id)) == neighPoints.get(getIndex(id)).size()-1) {
-            Log.i(TAG,"entered if, id: "+id);
-            //return neighPoints.get(getIndex(id)).get(neighPosGen.get(getIndex(id)));
-            return new VehicularData(neighDelay,"-1","-1","-1","-1");
+                else if (type.equals(TSIG_TRAFFIC_LIGHT_RED))
+                    updateTrafficSignalMarker(trafficSignalData, TSIG_TRAFFIC_LIGHT_RED);
+
+                else if (type.equals(TSIG_WORK_IN_PROGRESS))
+                    updateTrafficSignalMarker(trafficSignalData, TSIG_WORK_IN_PROGRESS);
+            }
         }
-
-        VehicularData vehicularData = neighPoints.get(getIndex(id)).get(neighPosGen.get(getIndex(id)));
-        neighPosGen.set(getIndex(id), neighPosGen.get(getIndex(id)) +1);
-        return vehicularData;
     }
 
-    private int getIndex(String id) {
-        return neighsIndex.indexOf(id);
+    private void removeTrafficSignalMarker(String id){
+        /** update the marker */
+        map.removeMarker(trafficSignalMarkers.get(id));
+        trafficSignalMarkers.remove(id);
     }
 
-    private void getSampleFromData(){
-        BufferedReader reader = null;
+    private void addTrafficSignalMarker(TrafficSignalData trafficSignalData){
+
+        String id = trafficSignalData.getId();
+        String type = trafficSignalData.getType();
+
+        IconFactory iconFactory = IconFactory.getInstance(Demo.this);
+        Icon icon = getTrafficSignalIcon(type);
+
+        trafficSignalMarkers.put(trafficSignalData.getId(), map.addMarker(new MarkerViewOptions()
+                .position(trafficSignalData.getLatLng())
+                .icon(icon)));
+        Log.i(TAG,"\nAdded new traffic signal with type: "+type);
+    }
+
+    private void updateTrafficSignalMarker(TrafficSignalData trafficSignalData, String type){
+        //
+        String id = trafficSignalData.getId();
+        IconFactory iconFactory = IconFactory.getInstance(Demo.this);
+        Icon icon = getTrafficSignalIcon(type);
+
+        /** update the marker */
+        trafficSignalMarkers.get(id).setIcon(icon);
+        trafficSignalMarkers.get(id).setPosition(trafficSignalData.getLatLng());
+    }
+
+    private Icon getTrafficSignalIcon(String type){
+        //TODO GET THE ICONS FOR TRAFFIC SIGNALS
+        IconFactory iconFactory = IconFactory.getInstance(Demo.this);
+
+        if(type.equals(TSIG_STOP))
+            return iconFactory.fromResource(R.mipmap.red_round_marker);
+
+        else if(type.equals(TSIG_TRAFFIC_LIGHT_GREEN))
+            return iconFactory.fromResource(R.mipmap.red_round_marker);
+
+        else if(type.equals(TSIG_TRAFFIC_LIGHT_YELLOW))
+            return iconFactory.fromResource(R.mipmap.red_round_marker);
+
+        else if(type.equals(TSIG_TRAFFIC_LIGHT_RED))
+            return iconFactory.fromResource(R.mipmap.red_round_marker);
+
+        else if(type.equals(TSIG_WORK_IN_PROGRESS))
+            return iconFactory.fromResource(R.mipmap.red_round_marker);
+        else
+            return null;
+    }
+
+    private String getUsrIP(){
+        /** Extract the IP address of the OBU from the SSID */
+        wifi = (WifiManager) getApplicationContext().getSystemService(Context.WIFI_SERVICE);
+        WifiInfo info = wifi.getConnectionInfo();
         String[] separated;
-        try {
-            reader = new BufferedReader(
-                    new InputStreamReader(getAssets().open(fileName)));
-            String mLine;
-            while ((mLine = reader.readLine()) != null) {
-                /** Seperate the Latitude from Longitude data */
-                separated = mLine.split(" ");
-                String id = separated[1];
-                if(id.equals(userId)) {             /** User Data */
-                    usrPoints.add(new VehicularData(
-                            separated[1],
-                            separated[3],
-                            separated[2],
-                            separated[4],
-                            separated[5]));
-                }
-                else{                               /** Neighbors Data */
-                    if( getIndex(id) == -1) {
-                        addNeighMarker(id);
-                    }
-                    addNeighPos(new VehicularData(
-                            separated[1],
-                            separated[3],
-                            separated[2],
-                            separated[4],
-                            separated[5]));
-                }
-            }
-        } catch (IOException e) {
-            /** log the exception */
-        } finally {
-            if (reader != null) {
-                try {
-                    reader.close();
-                } catch (IOException e) {
-                    /** log the exception */
-                }
-            }
-        }
+        separated = info.getSSID().toString().split("netRider");
+        Log.i(TAG,"IP: "+"10."+separated[1].substring(0,1)+"."+separated[1].substring(1,3)+".1");
+        return "10."+separated[1].substring(0,1)+"."+separated[1].substring(1,3)+".1";
     }
 
+    private String getUsrId(){
+        /** Extract the ID address of the OBU from the SSID */
+        wifi = (WifiManager) getApplicationContext().getSystemService(Context.WIFI_SERVICE);
+        WifiInfo info = wifi.getConnectionInfo();
+        String[] separated;
+        separated = info.getSSID().toString().split("netRider");
+        Log.i(TAG,"ID: "+separated[1].substring(0,3));
 
+        return separated[1].substring(0,3);
+    }
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -316,17 +384,17 @@ public class Demo extends AppCompatActivity implements PermissionsListener {
         Mapbox.getInstance(this, getString(R.string.access_token));
 
         /** This contains the MapView in XML and needs to be called after the account manager */
-        setContentView(R.layout.activity_demo_version);
+        setContentView(R.layout.activity_track_custom_route);
 
         /** Get the mapView object reference */
-        mapView = (MapView) findViewById(R.id.mapDemo);
+        mapView = (MapView) findViewById(R.id.mapView);
         mapView.onCreate(savedInstanceState);
         mapView.getMapAsync(new OnMapReadyCallback() {
             @Override
             public void onMapReady(MapboxMap mapboxMap) {
 
                 map = mapboxMap;
-                map.getUiSettings().setAllGesturesEnabled(false);
+                map.getUiSettings().setAllGesturesEnabled(!enableTracking);
 
                 permissionsManager = new PermissionsManager(Demo.this);
                 if (!PermissionsManager.areLocationPermissionsGranted(Demo.this)) {
@@ -338,27 +406,16 @@ public class Demo extends AppCompatActivity implements PermissionsListener {
         });
     }
 
-    private boolean isOnOpposingLane(Double userCourse, Double neighCourse){
-        Double usrOppositeCourse = (userCourse + 180) % 360;
-        return Math.abs(neighCourse - usrOppositeCourse) < opposingLaneThreshold ;
-    }
-    private boolean isOnSameLane(Double userCourse, Double neighCourse){
-        Double usrOppositeCourse = (userCourse + 180) % 360;
-        Double neighOppositeCourse = (neighCourse + 180) % 360;
-
-        return Math.abs(neighOppositeCourse - usrOppositeCourse) < sameLaneThreshold ;
-    }
-
     @Override
     public void onResume() {
         super.onResume();
         mapView.onResume();
-
     }
 
     @Override
     protected void onStart() {
         super.onStart();
+
         mapView.onStart();
         /** Start the timer */
         handler.postDelayed(runnable, initialDelayMs);
@@ -388,7 +445,8 @@ public class Demo extends AppCompatActivity implements PermissionsListener {
         mapView.onDestroy();
         /** Removes the previously set timer */
         handler.removeCallbacks(runnable);
-
+        /** Cancel the thread receiving the gps data */
+        // receiveData.cancel(true); // DEBUG - COMMENT
     }
 
     @Override

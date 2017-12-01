@@ -58,7 +58,7 @@ public class MainActivity extends AppCompatActivity {
         btnCM = (Button) findViewById(R.id.btnCM);
         btnOffMap = (Button) findViewById(R.id.btnOffline);
 
-        /** Button Demo Listener*/
+        /** Button Demo_old Listener*/
         btnDemo.setOnClickListener(new View.OnClickListener() {
             @Override
             public void onClick(View v) {
